@@ -1,0 +1,314 @@
+@import "tailwindcss";
+
+@import "@fontsource/outfit/300.css";
+@import "@fontsource/outfit/400.css";
+@import "@fontsource/outfit/500.css";
+@import "@fontsource/outfit/600.css";
+@import "@fontsource/outfit/700.css";
+@import "@fontsource/cormorant-garamond/400.css";
+@import "@fontsource/cormorant-garamond/500.css";
+@import "@fontsource/cormorant-garamond/600.css";
+@import "@fontsource/cormorant-garamond/700.css";
+@import "@fontsource/cormorant-garamond/400-italic.css";
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", ui-serif, Georgia, serif;
+
+  --color-paper: #faf7f1;
+  --color-paper-dim: #f1ecE2;
+  --color-paper-deep: #e7decf;
+  --color-ink: #231f1a;
+  --color-ink-soft: #55504a;
+  /* #6e6758: precisa manter >=4.5:1 (WCAG AA) mesmo sobre --color-paper-dim,
+     onde esse tom é usado (placeholder, metadados, tags). */
+  --color-ink-faint: #6e6758;
+
+  /* Calêndula: laranja de verdade (hue ~18°), não o dourado-amarelado da
+     primeira versão (hue ~43°, lia como amarelo). --color-calendula é a
+     ponta clara usada em texto/degradês com texto BRANCO; nunca com texto
+     ink em cima (ink nela cai pra ~3.8:1, falha WCAG). --color-calendula-deep
+     é a ponta escura, segura tanto com texto branco quanto como texto/ícone
+     direto sobre --color-paper. */
+  --color-calendula: #d44107;
+  --color-calendula-bright: #ff8a3d;
+  --color-calendula-deep: #8f2a05;
+  --color-calendula-soft: #ffd9b8;
+
+  /* Roxo amor-perfeito / erva-trindade. --color-violeta-bright é a ponta
+     clara dos degradês (ainda segura com texto branco, 5.17:1). */
+  --color-violeta-bright: #8b4fc9;
+  --color-violeta: #5b2a86;
+  --color-violeta-deep: #4a1d6e;
+  --color-violeta-soft: #e7dbf5;
+
+  /* Preto com leve matiz violeta (as marcas centrais do amor-perfeito). */
+  --color-noite: #211a28;
+
+  --ease-out-strong: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  cursor: pointer;
+}
+
+/* ---------- Vidro líquido ---------- */
+/* Aproximação web de glassmorphism (não é o material nativo da Apple) */
+.glass {
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(
+      135deg,
+      rgb(255 255 255 / 0.55),
+      rgb(255 255 255 / 0.22)
+    ),
+    rgb(255 255 255 / 0.4);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  border: 1px solid rgb(255 255 255 / 0.6);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    inset 0 -1px 0 rgb(255 255 255 / 0.15),
+    0 12px 40px -8px rgb(90 62 30 / 0.18);
+}
+
+/* Visual de vidro SEM `backdrop-filter`: usada nos cards da grade, onde
+   dezenas de instâncias simultâneas na tela (cada uma recompondo o blur do
+   fundo a cada frame de rolagem) são o principal gargalo de performance do
+   site (rolagem lenta e irregular). O fundo já é opaco o bastante (duas
+   camadas de branco translúcido) pra ler como "vidro" sem precisar
+   desfocar de verdade o que está atrás - custo de pintura normal, não de
+   composição por frame. */
+.glass-card {
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(
+      135deg,
+      rgb(255 255 255 / 0.7),
+      rgb(255 255 255 / 0.42)
+    ),
+    rgb(255 253 249 / 0.62);
+  border: 1px solid rgb(255 255 255 / 0.65);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    inset 0 -1px 0 rgb(255 255 255 / 0.15),
+    0 12px 40px -8px rgb(90 62 30 / 0.18);
+}
+
+.glass-deep {
+  background: linear-gradient(
+      150deg,
+      rgb(255 255 255 / 0.65),
+      rgb(250 247 241 / 0.35)
+    ),
+    rgb(255 255 255 / 0.55);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  border: 1px solid rgb(255 255 255 / 0.7);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.8),
+    inset 0 -1px 0 rgb(255 255 255 / 0.2),
+    0 30px 80px -20px rgb(90 62 30 / 0.28);
+}
+
+/* Painel de leitura: precisa de muito mais opacidade que o glass decorativo
+   comum, porque texto longo sobre vidro translúcido perde contraste real
+   mesmo quando o cálculo contra uma cor chapada passa. Quase sólido, só uma
+   borda e um brilho de topo lembram o material líquido.
+   Sem `backdrop-filter`: o fundo já é 96-98% opaco, então o blur contribuía
+   quase nada visualmente - mas custava caro de verdade, pior ainda no
+   celular (GPU mais fraca) justo durante a animação de entrada (painel
+   inteiro deslizando via `transform` enquanto recompõe blur a cada frame
+   era a causa principal do modal "abrindo devagar" no mobile). */
+.glass-reading {
+  background: linear-gradient(
+      165deg,
+      rgb(255 255 255 / 0.98),
+      rgb(250 247 241 / 0.96)
+    );
+  border: 1px solid rgb(255 255 255 / 0.9);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    -40px 0 80px -40px rgb(90 62 30 / 0.35),
+    0 0 140px -40px rgb(255 138 61 / 0.3),
+    0 40px 160px -60px rgb(91 42 134 / 0.22);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .glass-deep,
+  .glass-reading {
+    background: var(--color-paper);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* ---------- Degradês mistos (identidade "artista") ---------- */
+/* Texto branco passa em >=4.5:1 em toda a extensão de cada degradê abaixo -
+   conferido par a par, não só nas pontas nominais (ver conversa de contraste). */
+.gradient-calendula {
+  background: linear-gradient(
+    135deg,
+    var(--color-calendula-bright) 0%,
+    var(--color-calendula) 55%,
+    var(--color-calendula-deep) 100%
+  );
+}
+
+.gradient-violeta {
+  background: linear-gradient(
+    135deg,
+    var(--color-violeta-bright) 0%,
+    var(--color-violeta) 55%,
+    var(--color-noite) 100%
+  );
+}
+
+.gradient-noite {
+  background: linear-gradient(
+    150deg,
+    var(--color-noite) 0%,
+    var(--color-violeta-deep) 70%,
+    var(--color-violeta) 100%
+  );
+}
+
+/* Borda em degradê (truque padding-box/border-box): usada no badge de
+   "ensaio", o único sem preenchimento sólido - a mistura de cor vive só na
+   borda, mantendo o selo mais "neutro" que os outros três. */
+.gradient-border-mixed {
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(var(--color-paper), var(--color-paper)) padding-box,
+    linear-gradient(
+        120deg,
+        var(--color-calendula) 0%,
+        var(--color-violeta) 55%,
+        var(--color-noite) 100%
+      )
+      border-box;
+}
+
+/* ---------- Metal (medalhão numerado) ---------- */
+.metal-coin {
+  background: linear-gradient(
+    155deg,
+    #fdfbf7 0%,
+    #e9e2d2 22%,
+    #bfb49c 38%,
+    #efe9db 52%,
+    #a69a7d 68%,
+    #e3dbc8 84%,
+    #c7bca2 100%
+  );
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 0.9),
+    inset 0 -1px 2px rgb(0 0 0 / 0.25),
+    0 1px 2px rgb(0 0 0 / 0.15);
+}
+
+/* ---------- Orbes de fundo ---------- */
+.orb {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(42px);
+  pointer-events: none;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .orb-drift-a {
+    animation: orb-drift-a 32s var(--ease-in-out-strong) infinite;
+  }
+  .orb-drift-b {
+    animation: orb-drift-b 38s var(--ease-in-out-strong) infinite;
+  }
+  .orb-drift-c {
+    animation: orb-drift-c 26s var(--ease-in-out-strong) infinite;
+  }
+}
+
+@keyframes orb-drift-a {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(18px, -14px) scale(1.05);
+  }
+}
+
+@keyframes orb-drift-b {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-22px, 16px) scale(1.03);
+  }
+}
+
+@keyframes orb-drift-c {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(12px, 20px) scale(1.06);
+  }
+}
+
+/* ---------- Grão sutil (evita "slide em branco") ---------- */
+/* `mix-blend-mode` aqui forçava o navegador a recompor essa camada contra
+   TODA a página (ela cobre a tela inteira, acima de tudo) a cada frame de
+   rolagem - um dos maiores custos de composição do site. Opacidade baixa
+   sozinha (sem blend mode) dá um resultado visualmente quase idêntico a
+   0.025 e volta a ser composição simples (alpha normal). */
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- Scrollbar discreta no painel de leitura ---------- */
+.quiet-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(140 133 119 / 0.4) transparent;
+}
+.quiet-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.quiet-scroll::-webkit-scrollbar-thumb {
+  background: rgb(140 133 119 / 0.35);
+  border-radius: 999px;
+}
+
+.text-clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.text-clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}

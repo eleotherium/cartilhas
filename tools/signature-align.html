@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Alinhar assinatura</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --calendula-deep: #8f2a05;
+    --paper: #fbf3ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px;
+    font-family: -apple-system, "Segoe UI", sans-serif;
+    background: #e8e2db;
+    color: #2a2420;
+  }
+  h1.page-title { font-size: 20px; margin: 0 0 4px; }
+  p.instructions { font-size: 14px; color: #5a5248; margin: 0 0 28px; line-height: 1.5; }
+  p.instructions b { color: #2a2420; }
+
+  .block {
+    margin-bottom: 40px;
+    border: 1px solid #d6cec2;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+  }
+  .block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: #f1ebe3;
+    border-bottom: 1px solid #d6cec2;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .block-header button {
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 7px;
+    border: 1px solid #c9bfb0;
+    background: #fff;
+    cursor: pointer;
+  }
+  .block-header button:hover { background: #f6f1ea; }
+
+  .stage {
+    position: relative;
+    background: linear-gradient(135deg, #f6d9c6 0%, #f3e3e6 45%, #e3d6ee 100%);
+    padding: 60px 40px;
+    overflow: hidden;
+    touch-action: none;
+  }
+  .title-ref {
+    font-family: "Cormorant Garamond", serif;
+    font-weight: 700;
+    color: var(--calendula-deep);
+    line-height: 1;
+    letter-spacing: -0.01em;
+    user-select: none;
+    white-space: nowrap;
+    display: inline-block;
+  }
+  .grid-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right, rgba(0,160,255,0.15) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0,160,255,0.15) 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .stage.show-grid .grid-overlay { opacity: 1; }
+
+  .sig {
+    position: absolute;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-drag: none;
+    transform-origin: 50% 50%;
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  .sig:active { cursor: grabbing; }
+  .sig.dragging { outline: 1px dashed rgba(0,160,255,0.6); outline-offset: 4px; }
+
+  .rotate-handle {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #0aa0ff;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    cursor: grab;
+    transform: translate(-50%, -50%);
+  }
+  .rotate-handle:active { cursor: grabbing; }
+  .anchor-dot {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #0aa0ff;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .anchor-dot::after {
+    content: "vértice do S";
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 10px;
+    color: #0aa0ff;
+    white-space: nowrap;
+    font-family: -apple-system, sans-serif;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 14px 16px;
+    background: #faf7f3;
+    border-top: 1px solid #e3dccf;
+    font-size: 12px;
+  }
+  .controls label {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    color: #5a5248;
+  }
+  .controls input[type="number"] {
+    width: 78px;
+    font: inherit;
+    padding: 4px 6px;
+    border: 1px solid #c9bfb0;
+    border-radius: 6px;
+  }
+  .readout {
+    padding: 12px 16px;
+    background: #211a28;
+    color: #e9e2f3;
+    font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .readout b { color: #ffb380; }
+</style>
+</head>
+<body>
+  <h1 class="page-title">Alinhar assinatura sobre "Cartilhas"</h1>
+  <p class="instructions">
+    <b>Arraste</b> a assinatura para mover. <b>Arraste a bolinha azul</b> (alça) para girar.
+    <b>Roda do mouse</b> sobre a assinatura para redimensionar (ou os campos abaixo).
+    O pontinho azul marca o vértice inferior-direito do "s" (o alvo original) só como referência — não precisa encostar nele.
+    Ajuste os dois blocos (mobile e desktop) como achar melhor; os valores de cada um aparecem embaixo pra eu copiar depois.
+  </p>
+
+  <div class="block" data-block="mobile">
+    <div class="block-header">
+      <span>Mobile · título 48px</span>
+      <div>
+        <button data-action="grid">grade</button>
+        <button data-action="reset">resetar</button>
+      </div>
+    </div>
+    <div class="stage" style="height: 280px;">
+      <div class="grid-overlay"></div>
+      <span class="title-ref" style="font-size: 48px;">Cartilhas</span>
+      <span class="anchor-dot"></span>
+      <img class="sig" src="../src/assets/assinatura.png" alt="assinatura" />
+      <div class="rotate-handle"></div>
+    </div>
+    <div class="controls">
+      <label>X (px) <input type="number" data-field="x" step="1" /></label>
+      <label>Y (px) <input type="number" data-field="y" step="1" /></label>
+      <label>Largura (px) <input type="number" data-field="w" step="1" /></label>
+      <label>Rotação (°) <input type="number" data-field="rot" step="0.5" /></label>
+    </div>
+    <div class="readout"></div>
+  </div>
+
+  <div class="block" data-block="desktop">
+    <div class="block-header">
+      <span>Desktop · título 72px</span>
+      <div>
+        <button data-action="grid">grade</button>
+        <button data-action="reset">resetar</button>
+      </div>
+    </div>
+    <div class="stage" style="height: 360px;">
+      <div class="grid-overlay"></div>
+      <span class="title-ref" style="font-size: 72px;">Cartilhas</span>
+      <span class="anchor-dot"></span>
+      <img class="sig" src="../src/assets/assinatura.png" alt="assinatura" />
+      <div class="rotate-handle"></div>
+    </div>
+    <div class="controls">
+      <label>X (px) <input type="number" data-field="x" step="1" /></label>
+      <label>Y (px) <input type="number" data-field="y" step="1" /></label>
+      <label>Largura (px) <input type="number" data-field="w" step="1" /></label>
+      <label>Rotação (°) <input type="number" data-field="rot" step="0.5" /></label>
+    </div>
+    <div class="readout"></div>
+  </div>
+
+<script>
+const SIGNATURE_ASPECT = 1191 / 878;
+
+function setupBlock(blockEl) {
+  const stage = blockEl.querySelector(".stage");
+  const titleEl = blockEl.querySelector(".title-ref");
+  const sig = blockEl.querySelector(".sig");
+  const handle = blockEl.querySelector(".rotate-handle");
+  const anchorDot = blockEl.querySelector(".anchor-dot");
+  const readout = blockEl.querySelector(".readout");
+  const inputs = {
+    x: blockEl.querySelector('[data-field="x"]'),
+    y: blockEl.querySelector('[data-field="y"]'),
+    w: blockEl.querySelector('[data-field="w"]'),
+    rot: blockEl.querySelector('[data-field="rot"]'),
+  };
+
+  // Posição inicial: tamanho ~1.4x a altura do título (valor atual no app),
+  // pingo pousando perto do vértice do "s" - só ponto de partida, arraste à vontade.
+  function titleHeight() {
+    return titleEl.getBoundingClientRect().height;
+  }
+
+  let state;
+  function defaultState() {
+    const th = titleHeight();
+    const w = th * 1.4 * SIGNATURE_ASPECT;
+    const h = th * 1.4;
+    const titleRect = titleEl.getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    const anchorX = titleRect.right - stageRect.left;
+    const anchorY = titleRect.bottom - stageRect.top;
+    return {
+      x: anchorX - 0.6255 * w,
+      y: anchorY - 0.6218 * h,
+      w,
+      rot: 0,
+    };
+  }
+
+  function placeAnchorDot() {
+    const titleRect = titleEl.getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    anchorDot.style.left = (titleRect.right - stageRect.left) + "px";
+    anchorDot.style.top = (titleRect.bottom - stageRect.top) + "px";
+  }
+
+  function apply() {
+    const h = state.w / SIGNATURE_ASPECT;
+    sig.style.left = state.x + "px";
+    sig.style.top = state.y + "px";
+    sig.style.width = state.w + "px";
+    sig.style.height = h + "px";
+    sig.style.transform = `rotate(${state.rot}deg)`;
+
+    const cx = state.x + state.w / 2;
+    const cy = state.y + h / 2;
+    const r = state.w * 0.62;
+    const rad = (state.rot - 90) * Math.PI / 180;
+    handle.style.left = (cx + Math.cos(rad) * r) + "px";
+    handle.style.top = (cy + Math.sin(rad) * r) + "px";
+
+    inputs.x.value = Math.round(state.x);
+    inputs.y.value = Math.round(state.y);
+    inputs.w.value = Math.round(state.w);
+    inputs.rot.value = state.rot;
+
+    const titleRect = titleEl.getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    const th = titleHeight();
+    const anchorX = titleRect.right - stageRect.left;
+    const anchorY = titleRect.bottom - stageRect.top;
+
+    readout.innerHTML =
+      `left/top (px, relativo ao stage): <b>${state.x.toFixed(1)}, ${state.y.toFixed(1)}</b>\n` +
+      `largura/altura (px): <b>${state.w.toFixed(1)}, ${h.toFixed(1)}</b>\n` +
+      `rotação: <b>${state.rot.toFixed(1)}deg</b>\n` +
+      `altura do título (referência): <b>${th.toFixed(1)}px</b>\n` +
+      `escala (altura img / altura título): <b>${(h / th).toFixed(3)}</b>\n` +
+      `offset do canto sup-esq em relação ao vértice do "s" (direita/baixo do h1): <b>dx=${(state.x - anchorX).toFixed(1)}px, dy=${(state.y - anchorY).toFixed(1)}px</b>\n` +
+      `-- como fração da altura do título --\n` +
+      `dx/th: <b>${((state.x - anchorX) / th).toFixed(4)}</b>   dy/th: <b>${((state.y - anchorY) / th).toFixed(4)}</b>   escala: <b>${(h / th).toFixed(4)}</b>   rot: <b>${state.rot.toFixed(1)}deg</b>`;
+  }
+
+  function reset() {
+    state = defaultState();
+    placeAnchorDot();
+    apply();
+  }
+
+  // drag pra mover - listeners no window durante o arraste (não em
+  // setPointerCapture: essa API lança exceção com certas origens de
+  // evento, e sem o devido try/catch isso abortava o handler inteiro
+  // sem aviso nenhum, travando o drag). Assim também funciona mesmo que
+  // o cursor saia da imagem no meio do arraste.
+  let dragOffset = null;
+  function onDragMove(e) {
+    if (!dragOffset) return;
+    const stageRect = stage.getBoundingClientRect();
+    state.x = (e.clientX - stageRect.left) - dragOffset.x;
+    state.y = (e.clientY - stageRect.top) - dragOffset.y;
+    apply();
+  }
+  function onDragUp() {
+    sig.classList.remove("dragging");
+    dragOffset = null;
+    window.removeEventListener("pointermove", onDragMove);
+    window.removeEventListener("pointerup", onDragUp);
+  }
+  sig.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    sig.classList.add("dragging");
+    const stageRect = stage.getBoundingClientRect();
+    dragOffset = {
+      x: (e.clientX - stageRect.left) - state.x,
+      y: (e.clientY - stageRect.top) - state.y,
+    };
+    window.addEventListener("pointermove", onDragMove);
+    window.addEventListener("pointerup", onDragUp);
+  });
+
+  // roda do mouse pra escalar
+  sig.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.04 : 0.96;
+    const h = state.w / SIGNATURE_ASPECT;
+    const cx = state.x + state.w / 2;
+    const cy = state.y + h / 2;
+    state.w *= factor;
+    const newH = state.w / SIGNATURE_ASPECT;
+    state.x = cx - state.w / 2;
+    state.y = cy - newH / 2;
+    apply();
+  }, { passive: false });
+
+  // alça de rotação - mesmo padrão (window, sem pointer capture)
+  let rotating = false;
+  function onRotateMove(e) {
+    if (!rotating) return;
+    const h = state.w / SIGNATURE_ASPECT;
+    const stageRect = stage.getBoundingClientRect();
+    const cx = stageRect.left + state.x + state.w / 2;
+    const cy = stageRect.top + state.y + h / 2;
+    const angle = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+    state.rot = angle + 90;
+    apply();
+  }
+  function onRotateUp() {
+    rotating = false;
+    window.removeEventListener("pointermove", onRotateMove);
+    window.removeEventListener("pointerup", onRotateUp);
+  }
+  handle.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    rotating = true;
+    window.addEventListener("pointermove", onRotateMove);
+    window.addEventListener("pointerup", onRotateUp);
+  });
+
+  // inputs numéricos
+  for (const key of ["x", "y", "w", "rot"]) {
+    inputs[key].addEventListener("input", () => {
+      const v = parseFloat(inputs[key].value);
+      if (!isNaN(v)) {
+        state[key] = v;
+        apply();
+      }
+    });
+  }
+
+  blockEl.querySelector('[data-action="reset"]').addEventListener("click", reset);
+  blockEl.querySelector('[data-action="grid"]').addEventListener("click", () => {
+    stage.classList.toggle("show-grid");
+  });
+
+  window.addEventListener("resize", placeAnchorDot);
+
+  reset();
+}
+
+document.querySelectorAll(".block").forEach(setupBlock);
+</script>
+</body>
+</html>
