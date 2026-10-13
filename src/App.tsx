@@ -35,6 +35,14 @@ function App() {
       .catch(() => setLoadError(true))
   }, [])
 
+  // Ping de visita, uma vez por carregamento da página - "fire-and-forget"
+  // de propósito, nunca bloqueia a UI nem precisa de retry se falhar (ver
+  // worker/index.ts, contadores simples no R2, consumidos pelo painel
+  // admin).
+  useEffect(() => {
+    fetch("/api/track/visit", { method: "POST" }).catch(() => {})
+  }, [])
+
   const [query, setQuery] = useState("")
   // Colapsada por padrão - quem quer os gêneros abre pelo ícone de sanduíche.
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -42,6 +50,17 @@ function App() {
   const [sortField, setSortField] = useState<SortField>("date")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
   const [activeId, setActiveId] = useState<number | null>(null)
+
+  // Ping de leitura toda vez que um texto abre, inclusive ao navegar
+  // prev/next dentro do leitor (cada abertura conta).
+  useEffect(() => {
+    if (activeId === null) return
+    fetch("/api/track/view", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: activeId }),
+    }).catch(() => {})
+  }, [activeId])
 
   // A sidebar e o botão são `position: fixed` de verdade (ver
   // CategorySidebar.tsx) - precisam de um `top` em px medido de verdade,

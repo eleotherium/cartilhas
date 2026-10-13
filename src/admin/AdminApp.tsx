@@ -1,17 +1,58 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Pencil, Plus } from "lucide-react"
 import { Backdrop } from "@/components/Backdrop"
-import { CATEGORY_META } from "@/lib/categories"
-import { cn } from "@/lib/utils"
+import { SearchBar } from "@/components/SearchBar"
+import type { CategoryFilter } from "@/components/CategorySidebar"
+import { CATEGORY_META, CATEGORY_ORDER } from "@/lib/categories"
+import { cn, normalize } from "@/lib/utils"
 import type { Cartilha } from "@/types/cartilha"
 import { CartilhaEditor } from "./CartilhaEditor"
+import { StatsPanel } from "./StatsPanel"
 
 type View = { name: "list" } | { name: "edit"; id: number | "new" }
+
+function CategoryPills({ selected, onSelect }: { selected: CategoryFilter; onSelect: (value: CategoryFilter) => void }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        onClick={() => onSelect("todos")}
+        aria-pressed={selected === "todos"}
+        className={cn(
+          "rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors duration-150",
+          selected === "todos" ? "bg-ink text-paper" : "bg-ink/6 text-ink-soft hover:bg-ink/10",
+        )}
+      >
+        Todos
+      </button>
+      {CATEGORY_ORDER.map((cat) => {
+        const meta = CATEGORY_META[cat]
+        const active = selected === cat
+        return (
+          <button
+            key={cat}
+            type="button"
+            onClick={() => onSelect(cat)}
+            aria-pressed={active}
+            className={cn(
+              "rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors duration-150",
+              active ? cn(meta.bg, meta.fg) : "bg-ink/6 text-ink-soft hover:bg-ink/10",
+            )}
+          >
+            {meta.plural}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 export function AdminApp() {
   const [view, setView] = useState<View>({ name: "list" })
   const [items, setItems] = useState<Cartilha[] | null>(null)
   const [error, setError] = useState(false)
+  const [query, setQuery] = useState("")
+  const [category, setCategory] = useState<CategoryFilter>("todos")
 
   const load = useCallback(() => {
     setItems(null)
@@ -28,6 +69,16 @@ export function AdminApp() {
   useEffect(() => {
     if (view.name === "list") load()
   }, [view, load])
+
+  const filtered = useMemo(() => {
+    const all = items ?? []
+    const needle = normalize(query.trim())
+    return all.filter((item) => {
+      const matchesCategory = category === "todos" || item.category === category
+      const matchesQuery = !needle || normalize(item.title).includes(needle) || normalize(item.body).includes(needle)
+      return matchesCategory && matchesQuery
+    })
+  }, [items, query, category])
 
   return (
     <div className="relative min-h-dvh">
@@ -61,31 +112,44 @@ export function AdminApp() {
         ) : items === null ? (
           <p className="text-ink-faint">Carregando...</p>
         ) : (
-          <ul className="flex flex-col gap-3">
-            {items.map((item) => {
-              const meta = CATEGORY_META[item.category]
-              return (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    onClick={() => setView({ name: "edit", id: item.id })}
-                    className="glass-card flex w-full items-center justify-between gap-4 rounded-[20px] px-5 py-4 text-left transition-shadow duration-150 hover:shadow-[0_12px_30px_-16px_rgb(212_65_7_/_0.4)]"
-                  >
-                    <div className="min-w-0">
-                      <div className="mb-1 flex items-center gap-2">
-                        <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]", meta.bg, meta.fg)}>
-                          {meta.label}
-                        </span>
-                        <span className="text-xs text-ink-faint">{item.dateLabel}</span>
-                      </div>
-                      <p className="truncate font-serif text-lg font-bold text-ink">{item.title}</p>
-                    </div>
-                    <Pencil className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={2} />
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
+          <>
+            <StatsPanel />
+
+            <div className="mb-6 flex flex-col gap-3">
+              <SearchBar value={query} onChange={setQuery} />
+              <CategoryPills selected={category} onSelect={setCategory} />
+            </div>
+
+            {filtered.length === 0 ? (
+              <p className="text-ink-faint">Nenhum texto encontrado.</p>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {filtered.map((item) => {
+                  const meta = CATEGORY_META[item.category]
+                  return (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => setView({ name: "edit", id: item.id })}
+                        className="glass-card flex w-full items-center justify-between gap-4 rounded-[20px] px-5 py-4 text-left transition-shadow duration-150 hover:shadow-[0_12px_30px_-16px_rgb(212_65_7_/_0.4)]"
+                      >
+                        <div className="min-w-0">
+                          <div className="mb-1 flex items-center gap-2">
+                            <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]", meta.bg, meta.fg)}>
+                              {meta.label}
+                            </span>
+                            <span className="text-xs text-ink-faint">{item.dateLabel}</span>
+                          </div>
+                          <p className="truncate font-serif text-lg font-bold text-ink">{item.title}</p>
+                        </div>
+                        <Pencil className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={2} />
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </>
         )}
       </div>
     </div>

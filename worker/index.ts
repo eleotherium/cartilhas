@@ -137,6 +137,96 @@ async function nextId(bucket: R2Bucket): Promise<number> {
   return max + 1
 }
 
+// Contadores simples no R2 (não Analytics Engine - escolha explícita do
+// usuário: sem serviço novo pra configurar, aceitando o risco pequeno de
+// perder uma contagem sob concorrência real, irrelevante pro tráfego de um
+// site pessoal). Um objeto só, reescrito a cada ping - mesmo padrão de
+// `_index.json`. `visitsByDay`/`readsByDay` ficam só com os últimos
+// STATS_RETENTION_DAYS dias (podados a cada escrita) pra não crescer sem
+// limite; os totais (`visitsTotal`/`readsTotal`) são permanentes.
+const STATS_KEY = "_stats.json"
+const STATS_RETENTION_DAYS = 30
+
+interface StatsData {
+  visitsTotal: number
+  readsTotal: number
+  visitsByDay: Record<string, number>
+  readsByDay: Record<string, number>
+  readsByText: Record<string, number>
+}
+
+function emptyStats(): StatsData {
+  return { visitsTotal: 0, readsTotal: 0, visitsByDay: {}, readsByDay: {}, readsByText: {} }
+}
+
+// Dia em UTC (não pt-BR local) - só serve de chave de agrupamento pro
+// gráfico do admin, não precisa bater com o fuso do visitante.
+function todayKey(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function pruneOldDays(byDay: Record<string, number>): Record<string, number> {
+  const cutoff = new Date()
+  cutoff.setUTCDate(cutoff.getUTCDate() - STATS_RETENTION_DAYS)
+  const cutoffKey = cutoff.toISOString().slice(0, 10)
+  const pruned: Record<string, number> = {}
+  for (const [day, count] of Object.entries(byDay)) {
+    if (day >= cutoffKey) pruned[day] = count
+  }
+  return pruned
+}
+
+async function loadStats(bucket: R2Bucket): Promise<StatsData> {
+  const obj = await bucket.get(STATS_KEY)
+  if (!obj) return emptyStats()
+  try {
+    const data = await obj.json<Partial<StatsData>>()
+    return { ...emptyStats(), ...data }
+  } catch {
+    return emptyStats()
+  }
+}
+
+async function saveStats(bucket: R2Bucket, stats: StatsData): Promise<void> {
+  await bucket.put(STATS_KEY, JSON.stringify(stats), {
+    httpMetadata: { contentType: "application/json; charset=utf-8" },
+  })
+}
+
+async function trackVisit(bucket: R2Bucket): Promise<void> {
+  const stats = await loadStats(bucket)
+  stats.visitsTotal += 1
+  const day = todayKey()
+  stats.visitsByDay[day] = (stats.visitsByDay[day] ?? 0) + 1
+  stats.visitsByDay = pruneOldDays(stats.visitsByDay)
+  await saveStats(bucket, stats)
+}
+
+async function trackRead(bucket: R2Bucket, id: number): Promise<void> {
+  const stats = await loadStats(bucket)
+  stats.readsTotal += 1
+  const day = todayKey()
+  stats.readsByDay[day] = (stats.readsByDay[day] ?? 0) + 1
+  stats.readsByDay = pruneOldDays(stats.readsByDay)
+  const key = String(id)
+  stats.readsByText[key] = (stats.readsByText[key] ?? 0) + 1
+  await saveStats(bucket, stats)
+}
+
+// Preenche os últimos `n` dias com 0 nos dias sem evento - sem isso o
+// gráfico do admin teria buracos em vez de barras na altura zero.
+function lastNDaysSeries(byDay: Record<string, number>, n: number): { date: string; count: number }[] {
+  const series: { date: string; count: number }[] = []
+  const now = new Date()
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now)
+    d.setUTCDate(d.getUTCDate() - i)
+    const key = d.toISOString().slice(0, 10)
+    series.push({ date: key, count: byDay[key] ?? 0 })
+  }
+  return series
+}
+
 // A aplicação Access (configurada no painel Cloudflare, fora deste código) é a
 // barreira de verdade - intercepta a requisição antes dela sequer chegar
 // aqui. Esta checagem é só rede de segurança: confere que o header que o
@@ -184,6 +274,29 @@ export default {
       return jsonResponse(await rebuildIndex(bucket))
     }
 
+    // Pings de tracking - públicos de propósito (são só incremento de
+    // contador, nada sensível) e tolerantes a payload ruim (nunca travam a
+    // leitura/navegação do visitante por causa de uma falha aqui).
+    if (pathname === "/api/track/visit" && request.method === "POST") {
+      await trackVisit(bucket)
+      return jsonResponse({ ok: true })
+    }
+
+    if (pathname === "/api/track/view" && request.method === "POST") {
+      let payload: unknown
+      try {
+        payload = await request.json()
+      } catch {
+        return jsonResponse({ error: "JSON inválido" }, { status: 400 })
+      }
+      const id = (payload as Record<string, unknown> | null)?.id
+      if (typeof id !== "number" || !Number.isInteger(id)) {
+        return jsonResponse({ error: "id inválido" }, { status: 400 })
+      }
+      await trackRead(bucket, id)
+      return jsonResponse({ ok: true })
+    }
+
     if (pathname.startsWith("/api/admin/")) {
       if (!isAuthed(request, env)) return jsonResponse({ error: "não autenticado" }, { status: 401 })
 
@@ -194,6 +307,34 @@ export default {
       if (pathname === "/api/admin/reindex" && request.method === "POST") {
         const entries = await rebuildIndex(bucket)
         return jsonResponse({ ok: true, count: entries.length })
+      }
+
+      if (pathname === "/api/admin/stats" && request.method === "GET") {
+        const stats = await loadStats(bucket)
+        const cached = await bucket.get(INDEX_KEY)
+        const index: CartilhaFull[] = cached
+          ? ((await cached.json()) as CartilhaFull[])
+          : await rebuildIndex(bucket)
+        const byId = new Map(index.map((e) => [e.id, e]))
+        const topReads = Object.entries(stats.readsByText)
+          .map(([id, count]) => {
+            const entry = byId.get(Number(id))
+            return {
+              id: Number(id),
+              count,
+              title: entry?.title ?? "(texto removido)",
+              category: entry?.category ?? null,
+            }
+          })
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 10)
+        return jsonResponse({
+          visitsTotal: stats.visitsTotal,
+          readsTotal: stats.readsTotal,
+          visitsSeries: lastNDaysSeries(stats.visitsByDay, STATS_RETENTION_DAYS),
+          readsSeries: lastNDaysSeries(stats.readsByDay, STATS_RETENTION_DAYS),
+          topReads,
+        })
       }
 
       const rawMatch = pathname.match(/^\/api\/admin\/cartilhas\/(\d+)\/raw$/)
@@ -232,6 +373,11 @@ export default {
       if (delMatch && request.method === "DELETE") {
         await bucket.delete(`${delMatch[1]}.md`)
         await rebuildIndex(bucket)
+        const stats = await loadStats(bucket)
+        if (delMatch[1] in stats.readsByText) {
+          delete stats.readsByText[delMatch[1]]
+          await saveStats(bucket, stats)
+        }
         return jsonResponse({ ok: true })
       }
 
