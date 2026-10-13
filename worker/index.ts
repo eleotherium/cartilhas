@@ -141,11 +141,13 @@ async function nextId(bucket: R2Bucket): Promise<number> {
 // usuário: sem serviço novo pra configurar, aceitando o risco pequeno de
 // perder uma contagem sob concorrência real, irrelevante pro tráfego de um
 // site pessoal). Um objeto só, reescrito a cada ping - mesmo padrão de
-// `_index.json`. `visitsByDay`/`readsByDay` ficam só com os últimos
-// STATS_RETENTION_DAYS dias (podados a cada escrita) pra não crescer sem
-// limite; os totais (`visitsTotal`/`readsTotal`) são permanentes.
+// `_index.json`. `visitsByDay`/`readsByDay`/`readsByTextByDay` ficam só com
+// os últimos STATS_RETENTION_DAYS dias (podados a cada escrita) pra não
+// crescer sem limite - retenção generosa (~13 meses) pra cobrir qualquer
+// período personalizado razoável que o admin escolha no seletor; os totais
+// (`visitsTotal`/`readsTotal`/`readsByText`) são permanentes, nunca podados.
 const STATS_KEY = "_stats.json"
-const STATS_RETENTION_DAYS = 30
+const STATS_RETENTION_DAYS = 400
 
 interface StatsData {
   visitsTotal: number
@@ -153,22 +155,33 @@ interface StatsData {
   visitsByDay: Record<string, number>
   readsByDay: Record<string, number>
   readsByText: Record<string, number>
+  /** id (string) -> { dia -> contagem } - granularidade por dia só por
+   * texto, não por categoria/etc: é o que o seletor de período da página
+   * de edição precisa pra calcular hoje/7d/30d/período personalizado de
+   * UM texto só, sem ter que escanear todos os textos. */
+  readsByTextByDay: Record<string, Record<string, number>>
 }
 
 function emptyStats(): StatsData {
-  return { visitsTotal: 0, readsTotal: 0, visitsByDay: {}, readsByDay: {}, readsByText: {} }
+  return { visitsTotal: 0, readsTotal: 0, visitsByDay: {}, readsByDay: {}, readsByText: {}, readsByTextByDay: {} }
 }
 
-// Dia em UTC (não pt-BR local) - só serve de chave de agrupamento pro
-// gráfico do admin, não precisa bater com o fuso do visitante.
+// Dia em UTC (não pt-BR local) - só serve de chave de agrupamento, não
+// precisa bater com o fuso do visitante. O cliente (PeriodSelector.tsx)
+// calcula "hoje"/"ontem"/"7 dias"/"30 dias" com a mesma convenção UTC, pra
+// as chaves baterem certinho dos dois lados.
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+function addDaysStr(dateStr: string, delta: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + delta)
+  return d.toISOString().slice(0, 10)
+}
+
 function pruneOldDays(byDay: Record<string, number>): Record<string, number> {
-  const cutoff = new Date()
-  cutoff.setUTCDate(cutoff.getUTCDate() - STATS_RETENTION_DAYS)
-  const cutoffKey = cutoff.toISOString().slice(0, 10)
+  const cutoffKey = addDaysStr(todayKey(), -STATS_RETENTION_DAYS)
   const pruned: Record<string, number> = {}
   for (const [day, count] of Object.entries(byDay)) {
     if (day >= cutoffKey) pruned[day] = count
@@ -210,19 +223,31 @@ async function trackRead(bucket: R2Bucket, id: number): Promise<void> {
   stats.readsByDay = pruneOldDays(stats.readsByDay)
   const key = String(id)
   stats.readsByText[key] = (stats.readsByText[key] ?? 0) + 1
+  const byDay = stats.readsByTextByDay[key] ?? {}
+  byDay[day] = (byDay[day] ?? 0) + 1
+  stats.readsByTextByDay[key] = pruneOldDays(byDay)
   await saveStats(bucket, stats)
 }
 
-// Preenche os últimos `n` dias com 0 nos dias sem evento - sem isso o
-// gráfico do admin teria buracos em vez de barras na altura zero.
-function lastNDaysSeries(byDay: Record<string, number>, n: number): { date: string; count: number }[] {
+function sumRange(byDay: Record<string, number>, from: string, to: string): number {
+  let sum = 0
+  for (const [day, count] of Object.entries(byDay)) {
+    if (day >= from && day <= to) sum += count
+  }
+  return sum
+}
+
+// Preenche cada dia de `from` até `to` (inclusive) com 0 nos dias sem
+// evento - sem isso o gráfico do admin teria buracos em vez de barras na
+// altura zero. Limitado a STATS_RETENTION_DAYS+1 iterações como rede de
+// segurança contra um intervalo absurdamente grande ou invertido vindo
+// de query string malformada.
+function seriesForRange(byDay: Record<string, number>, from: string, to: string): { date: string; count: number }[] {
   const series: { date: string; count: number }[] = []
-  const now = new Date()
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(now)
-    d.setUTCDate(d.getUTCDate() - i)
-    const key = d.toISOString().slice(0, 10)
-    series.push({ date: key, count: byDay[key] ?? 0 })
+  let cursor = from
+  for (let i = 0; i <= STATS_RETENTION_DAYS && cursor <= to; i++) {
+    series.push({ date: cursor, count: byDay[cursor] ?? 0 })
+    cursor = addDaysStr(cursor, 1)
   }
   return series
 }
@@ -309,50 +334,72 @@ export default {
         return jsonResponse({ ok: true, count: entries.length })
       }
 
+      // Período vem sempre explícito do cliente (PeriodSelector.tsx calcula
+      // hoje/ontem/7d/30d/personalizado em UTC e manda from/to prontos) -
+      // o worker não precisa saber de presets, só soma o intervalo pedido.
+      // Sem from/to (chamada antiga ou direta), cai num padrão de 30 dias.
       if (pathname === "/api/admin/stats" && request.method === "GET") {
+        const url = new URL(request.url)
+        const to = url.searchParams.get("to") ?? todayKey()
+        const from = url.searchParams.get("from") ?? addDaysStr(to, -29)
         const stats = await loadStats(bucket)
         const cached = await bucket.get(INDEX_KEY)
         const index: CartilhaFull[] = cached
           ? ((await cached.json()) as CartilhaFull[])
           : await rebuildIndex(bucket)
         const byId = new Map(index.map((e) => [e.id, e]))
-        const topReads = Object.entries(stats.readsByText)
-          .map(([id, count]) => {
-            const entry = byId.get(Number(id))
-            return {
-              id: Number(id),
-              count,
-              title: entry?.title ?? "(texto removido)",
-              category: entry?.category ?? null,
-            }
-          })
+        const topReads = Object.entries(stats.readsByTextByDay)
+          .map(([id, byDay]) => ({ id: Number(id), count: sumRange(byDay, from, to) }))
+          .filter((e) => e.count > 0)
           .sort((a, b) => b.count - a.count)
           .slice(0, 10)
+          .map((e) => {
+            const entry = byId.get(e.id)
+            return { ...e, title: entry?.title ?? "(texto removido)", category: entry?.category ?? null }
+          })
         return jsonResponse({
-          visitsTotal: stats.visitsTotal,
-          readsTotal: stats.readsTotal,
-          visitsSeries: lastNDaysSeries(stats.visitsByDay, STATS_RETENTION_DAYS),
-          readsSeries: lastNDaysSeries(stats.readsByDay, STATS_RETENTION_DAYS),
+          from,
+          to,
+          visitsTotal: sumRange(stats.visitsByDay, from, to),
+          readsTotal: sumRange(stats.readsByDay, from, to),
+          visitsSeries: seriesForRange(stats.visitsByDay, from, to),
+          readsSeries: seriesForRange(stats.readsByDay, from, to),
           topReads,
         })
       }
 
-      // Stats de um texto só (botão de stats no preview admin e no editor -
-      // ver TextTools.tsx). `rank`/`total` só consideram textos com pelo
-      // menos 1 leitura (sem isso, todo texto sem leitura nenhuma empataria
-      // em "último lugar", um empate sem sentido de reportar).
+      // Stats de um texto só (StatsButton no preview admin, e a faixa de 3/4
+      // cartões na página de edição - ver TextTools.tsx e PeriodSelector.tsx).
+      // `today`/`last7d`/`last30d` são sempre calculados (referência fixa);
+      // `filtered` só vem preenchido se `from`/`to` forem passados (período
+      // escolhido no seletor). `rank`/`total` consideram só textos com pelo
+      // menos 1 leitura (sem isso todo texto zerado empataria em "último
+      // lugar", um empate sem sentido de reportar).
       const statOneMatch = pathname.match(/^\/api\/admin\/stats\/(\d+)$/)
       if (statOneMatch && request.method === "GET") {
         const id = Number(statOneMatch[1])
+        const key = String(id)
         const stats = await loadStats(bucket)
+        const byDay = stats.readsByTextByDay[key] ?? {}
+        const today = todayKey()
         const ranked = Object.entries(stats.readsByText)
-          .map(([key, count]) => ({ id: Number(key), count }))
+          .map(([k, count]) => ({ id: Number(k), count }))
           .sort((a, b) => b.count - a.count)
         const position = ranked.findIndex((e) => e.id === id)
+
+        const url = new URL(request.url)
+        const from = url.searchParams.get("from")
+        const to = url.searchParams.get("to")
+        const filtered = from && to ? { from, to, count: sumRange(byDay, from, to) } : null
+
         return jsonResponse({
-          count: stats.readsByText[String(id)] ?? 0,
+          today: sumRange(byDay, today, today),
+          last7d: sumRange(byDay, addDaysStr(today, -6), today),
+          last30d: sumRange(byDay, addDaysStr(today, -29), today),
+          allTime: stats.readsByText[key] ?? 0,
           rank: position >= 0 ? position + 1 : null,
           total: ranked.length,
+          filtered,
         })
       }
 
@@ -393,10 +440,16 @@ export default {
         await bucket.delete(`${delMatch[1]}.md`)
         await rebuildIndex(bucket)
         const stats = await loadStats(bucket)
+        let statsChanged = false
         if (delMatch[1] in stats.readsByText) {
           delete stats.readsByText[delMatch[1]]
-          await saveStats(bucket, stats)
+          statsChanged = true
         }
+        if (delMatch[1] in stats.readsByTextByDay) {
+          delete stats.readsByTextByDay[delMatch[1]]
+          statsChanged = true
+        }
+        if (statsChanged) await saveStats(bucket, stats)
         return jsonResponse({ ok: true })
       }
 

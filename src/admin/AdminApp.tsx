@@ -8,6 +8,8 @@ import { CATEGORY_META, CATEGORY_ORDER } from "@/lib/categories"
 import { cn, normalize } from "@/lib/utils"
 import type { Cartilha } from "@/types/cartilha"
 import { CartilhaEditor } from "./CartilhaEditor"
+import { PeriodSelector } from "./PeriodSelector"
+import { defaultPeriod, type PeriodValue } from "./periodRange"
 import { StatsPanel } from "./StatsPanel"
 import { ShareButton, StatsButton } from "./TextTools"
 
@@ -60,6 +62,7 @@ export function AdminApp() {
   // é por isso que os ícones de stats (TextTools.tsx) só aparecem nesta
   // versão, nunca na do App.tsx.
   const [previewId, setPreviewId] = useState<number | null>(null)
+  const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod())
 
   const load = useCallback(() => {
     setItems(null)
@@ -111,14 +114,17 @@ export function AdminApp() {
             </p>
           </div>
           {view.name === "list" && (
-            <button
-              type="button"
-              onClick={() => setView({ name: "edit", id: "new" })}
-              className="gradient-calendula flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-paper shadow-[0_8px_20px_-6px_rgb(212_65_7_/_0.5)]"
-            >
-              <Plus className="h-4 w-4" strokeWidth={2.5} />
-              Novo texto
-            </button>
+            <div className="flex items-center gap-2">
+              <PeriodSelector value={period} onChange={setPeriod} />
+              <button
+                type="button"
+                onClick={() => setView({ name: "edit", id: "new" })}
+                className="gradient-calendula flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-paper shadow-[0_8px_20px_-6px_rgb(212_65_7_/_0.5)]"
+              >
+                <Plus className="h-4 w-4" strokeWidth={2.5} />
+                Novo texto
+              </button>
+            </div>
           )}
         </header>
 
@@ -130,7 +136,7 @@ export function AdminApp() {
           <p className="text-ink-faint">Carregando...</p>
         ) : (
           <>
-            <StatsPanel />
+            <StatsPanel period={period} />
 
             <div className="mb-6 flex flex-col gap-3">
               <SearchBar value={query} onChange={setQuery} />

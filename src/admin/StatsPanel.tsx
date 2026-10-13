@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Eye, Flame, Users } from "lucide-react"
 import { CATEGORY_META } from "@/lib/categories"
 import { cn } from "@/lib/utils"
+import { periodLabel, type PeriodValue } from "./periodRange"
 import type { Category } from "@/types/cartilha"
 
 interface DaySeries {
@@ -53,12 +54,14 @@ function StatCard({
   value,
   series,
   colorVar,
+  periodCaption,
 }: {
   icon: typeof Eye
   label: string
   value: number
   series: DaySeries[]
   colorVar: string
+  periodCaption: string
 }) {
   return (
     <div className="glass-card flex flex-col gap-4 rounded-[24px] p-5">
@@ -68,24 +71,26 @@ function StatCard({
       </div>
       <p className="font-serif text-3xl font-bold text-ink">{value.toLocaleString("pt-BR")}</p>
       <MiniBarChart data={series} colorVar={colorVar} />
-      <p className="text-[11px] text-ink-faint">Últimos 30 dias</p>
+      <p className="text-[11px] text-ink-faint">{periodCaption}</p>
     </div>
   )
 }
 
-export function StatsPanel() {
+export function StatsPanel({ period }: { period: PeriodValue }) {
   const [stats, setStats] = useState<Stats | null>(null)
   const [error, setError] = useState(false)
 
   useEffect(() => {
-    fetch("/api/admin/stats")
+    setStats(null)
+    setError(false)
+    fetch(`/api/admin/stats?from=${period.from}&to=${period.to}`)
       .then((res) => {
         if (!res.ok) throw new Error(`status ${res.status}`)
         return res.json() as Promise<Stats>
       })
       .then(setStats)
       .catch(() => setError(true))
-  }, [])
+  }, [period])
 
   if (error) return null
   if (!stats) {
@@ -95,8 +100,22 @@ export function StatsPanel() {
   return (
     <div className="mb-10 flex flex-col gap-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <StatCard icon={Users} label="Visitas" value={stats.visitsTotal} series={stats.visitsSeries} colorVar="var(--color-calendula)" />
-        <StatCard icon={Eye} label="Leituras" value={stats.readsTotal} series={stats.readsSeries} colorVar="var(--color-violeta)" />
+        <StatCard
+          icon={Users}
+          label="Visitas"
+          value={stats.visitsTotal}
+          series={stats.visitsSeries}
+          colorVar="var(--color-calendula)"
+          periodCaption={periodLabel(period)}
+        />
+        <StatCard
+          icon={Eye}
+          label="Leituras"
+          value={stats.readsTotal}
+          series={stats.readsSeries}
+          colorVar="var(--color-violeta)"
+          periodCaption={periodLabel(period)}
+        />
       </div>
 
       {stats.topReads.length > 0 && (

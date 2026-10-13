@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react"
 import type { Editor } from "@tiptap/react"
 import { ArrowLeft, Trash2, Save } from "lucide-react"
+import { PeriodSelector } from "./PeriodSelector"
+import { defaultPeriod, type PeriodValue } from "./periodRange"
 import { RichEditor } from "./RichEditor"
-import { ShareButton, StatsButton } from "./TextTools"
+import { ShareButton, TextStatsStrip } from "./TextTools"
 import type { Category } from "@/types/cartilha"
 
 interface CartilhaEditorProps {
@@ -60,6 +62,7 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
   const [loading, setLoading] = useState(id !== "new")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod())
   const editorRef = useRef<Editor | null>(null)
 
   useEffect(() => {
@@ -135,7 +138,7 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
         <div className="flex items-center gap-2">
           {id !== "new" && (
             <>
-              <StatsButton id={id} />
+              <PeriodSelector value={period} onChange={setPeriod} />
               <ShareButton id={id} />
               <span className="mx-1 h-5 w-px bg-ink/10" />
               <button
@@ -208,6 +211,8 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
           />
         </label>
       </div>
+
+      {id !== "new" && <TextStatsStrip id={id} period={period} />}
 
       <RichEditor initialMarkdown={initialMarkdown} onReady={(editor) => (editorRef.current = editor)} />
     </div>

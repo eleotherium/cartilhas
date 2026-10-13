@@ -405,3 +405,18 @@ button:not(:disabled),
       padding-box,
     linear-gradient(120deg, var(--color-calendula) 0%, var(--color-violeta) 100%) border-box;
 }
+/* `.card-highlight-mixed` reaproveita só o tratamento de cor da regra
+   acima (tinta leve + borda em degradê), sem herdar margin/padding - quem
+   usa (ver TextTools.tsx, cartão "no período filtrado" na faixa de stats
+   do admin) controla tamanho via classes Tailwind no próprio elemento. */
+.card-highlight-mixed {
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(
+        135deg,
+        color-mix(in oklch, var(--color-calendula) 10%, var(--color-paper)),
+        color-mix(in oklch, var(--color-violeta) 10%, var(--color-paper))
+      )
+      padding-box,
+    linear-gradient(120deg, var(--color-calendula) 0%, var(--color-violeta) 100%) border-box;
+}
