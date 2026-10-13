@@ -98,8 +98,12 @@ export function StatsPanel({ period }: { period: PeriodValue }) {
   }
 
   return (
-    <div className="mb-10 flex flex-col gap-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div className="flex flex-col gap-6">
+      {/* Sempre uma coluna só, não `sm:grid-cols-2` - este painel agora vive
+          numa barra lateral estreita (ver AdminApp.tsx), e `sm:` reage à
+          largura da VIEWPORT, não do container, então cramaria dois cartões
+          lado a lado mesmo dentro de uma coluna de 320px. */}
+      <div className="grid grid-cols-1 gap-4">
         <StatCard
           icon={Users}
           label="Visitas"

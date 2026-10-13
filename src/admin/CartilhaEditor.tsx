@@ -126,7 +126,11 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      {/* `flex-wrap`: em telas estreitas o cabeçalho tem botão de voltar +
+          seletor de período (mais largo que os ícones redondos que tinha
+          antes) + compartilhar + excluir + salvar - não cabem numa linha só
+          sem estourar a largura da tela (visto de verdade no mobile). */}
+      <div className="flex flex-wrap items-center justify-between gap-y-3">
         <button
           type="button"
           onClick={onBack}
@@ -135,7 +139,7 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
           <ArrowLeft className="h-4 w-4" strokeWidth={2} />
           Voltar
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {id !== "new" && (
             <>
               <PeriodSelector value={period} onChange={setPeriod} />

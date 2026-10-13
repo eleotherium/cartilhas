@@ -46,14 +46,15 @@ export function PeriodSelector({ value, onChange }: { value: PeriodValue; onChan
         {periodLabel(value)}
       </button>
       {open && (
-        // `.glass-card` define `position: relative` na própria regra CSS -
-        // combinar com `absolute` no MESMO elemento faz a posição relativa
-        // ganhar da utilitária (mesma especificidade, `.glass-card` vem
-        // depois na folha final), e `right-0`/`top-full` não fazem nada -
-        // bug real visto no mobile (popover saindo da viewport). Por isso
-        // o posicionamento vive num wrapper à parte, só com `absolute`.
+        // Posicionamento num wrapper à parte do visual (mesmo motivo de
+        // sempre: `.glass-card` define `position: relative` na própria
+        // regra CSS, então combiná-la com `absolute` no MESMO elemento faz
+        // a posição relativa ganhar da utilitária). Aqui o conteúdo usa
+        // fundo sólido (`bg-paper`, sem transparência/blur) de propósito -
+        // é um popover de dado (período/série temporal), não decorativo;
+        // pedido explícito pra tirar o efeito de vidro deste em específico.
         <div className="absolute right-0 top-full z-20 mt-2 w-64 max-w-[calc(100vw-2rem)]">
-          <div className="glass-card rounded-2xl p-3 text-left">
+          <div className="rounded-2xl border border-ink/10 bg-paper p-3 text-left shadow-[0_24px_60px_-16px_rgb(35_31_26_/_0.4)]">
             <div className="flex flex-col gap-1">
               {(Object.keys(PRESET_LABELS) as Exclude<PeriodPreset, "custom">[]).map((preset) => (
                 <button

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Eye, Pencil, Plus } from "lucide-react"
+import { AppHeader } from "@/components/AppHeader"
 import { Backdrop } from "@/components/Backdrop"
 import { ReadingDrawer } from "@/components/ReadingDrawer"
 import { SearchBar } from "@/components/SearchBar"
@@ -103,15 +104,15 @@ export function AdminApp() {
   return (
     <div className="relative min-h-dvh">
       <Backdrop />
-      <div className="relative mx-auto max-w-4xl px-6 py-16 sm:px-10">
-        <header className="mb-10 flex items-center justify-between">
+      <div className="relative mx-auto max-w-7xl px-6 py-16 sm:px-10">
+        <AppHeader />
+
+        <div className="mb-10 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="font-serif text-4xl font-bold text-calendula-deep">Cartilhas · Admin</h1>
-            <p className="mt-1 text-sm text-ink-faint">
-              <a href="/" className="underline hover:text-calendula-deep">
-                Ver site público
-              </a>
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-ink-faint">Painel administrativo</p>
+            <a href="/" className="text-sm text-ink-faint underline hover:text-calendula-deep">
+              Ver site público
+            </a>
           </div>
           {view.name === "list" && (
             <div className="flex items-center gap-2">
@@ -126,7 +127,7 @@ export function AdminApp() {
               </button>
             </div>
           )}
-        </header>
+        </div>
 
         {view.name === "edit" ? (
           <CartilhaEditor id={view.id} onBack={() => setView({ name: "list" })} onSaved={() => setView({ name: "list" })} />
@@ -135,55 +136,63 @@ export function AdminApp() {
         ) : items === null ? (
           <p className="text-ink-faint">Carregando...</p>
         ) : (
-          <>
-            <StatsPanel period={period} />
+          // Dados/filtros numa coluna à parte da listagem - não dividem o
+          // mesmo fluxo vertical (pedido explícito: a visualização padrão
+          // tava lendo como uma tela mobile de coluna única mesmo no
+          // desktop). Empilha em telas estreitas (`flex-col`), vira duas
+          // colunas de verdade a partir de `lg`.
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+            <aside className="flex flex-col gap-6 lg:w-[320px] lg:shrink-0">
+              <StatsPanel period={period} />
+              <div className="flex flex-col gap-3">
+                <SearchBar value={query} onChange={setQuery} />
+                <CategoryPills selected={category} onSelect={setCategory} />
+              </div>
+            </aside>
 
-            <div className="mb-6 flex flex-col gap-3">
-              <SearchBar value={query} onChange={setQuery} />
-              <CategoryPills selected={category} onSelect={setCategory} />
-            </div>
-
-            {filtered.length === 0 ? (
-              <p className="text-ink-faint">Nenhum texto encontrado.</p>
-            ) : (
-              <ul className="flex flex-col gap-3">
-                {filtered.map((item) => {
-                  const meta = CATEGORY_META[item.category]
-                  return (
-                    <li
-                      key={item.id}
-                      className="glass-card flex items-center gap-1 rounded-[20px] pr-3 transition-shadow duration-150 hover:shadow-[0_12px_30px_-16px_rgb(212_65_7_/_0.4)]"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setView({ name: "edit", id: item.id })}
-                        className="flex min-w-0 flex-1 items-center justify-between gap-4 px-5 py-4 text-left"
+            <main className="min-w-0 flex-1">
+              {filtered.length === 0 ? (
+                <p className="text-ink-faint">Nenhum texto encontrado.</p>
+              ) : (
+                <ul className="flex flex-col gap-3">
+                  {filtered.map((item) => {
+                    const meta = CATEGORY_META[item.category]
+                    return (
+                      <li
+                        key={item.id}
+                        className="glass-card flex items-center gap-1 rounded-[20px] pr-3 transition-shadow duration-150 hover:shadow-[0_12px_30px_-16px_rgb(212_65_7_/_0.4)]"
                       >
-                        <div className="min-w-0">
-                          <div className="mb-1 flex items-center gap-2">
-                            <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]", meta.bg, meta.fg)}>
-                              {meta.label}
-                            </span>
-                            <span className="text-xs text-ink-faint">{item.dateLabel}</span>
+                        <button
+                          type="button"
+                          onClick={() => setView({ name: "edit", id: item.id })}
+                          className="flex min-w-0 flex-1 items-center justify-between gap-4 px-5 py-4 text-left"
+                        >
+                          <div className="min-w-0">
+                            <div className="mb-1 flex items-center gap-2">
+                              <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]", meta.bg, meta.fg)}>
+                                {meta.label}
+                              </span>
+                              <span className="text-xs text-ink-faint">{item.dateLabel}</span>
+                            </div>
+                            <p className="truncate font-serif text-lg font-bold text-ink">{item.title}</p>
                           </div>
-                          <p className="truncate font-serif text-lg font-bold text-ink">{item.title}</p>
-                        </div>
-                        <Pencil className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={2} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPreviewId(item.id)}
-                        aria-label={`Pré-visualizar "${item.title}"`}
-                        className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-faint transition-colors duration-150 hover:text-calendula-deep"
-                      >
-                        <Eye className="h-4 w-4" strokeWidth={2} />
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </>
+                          <Pencil className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={2} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewId(item.id)}
+                          aria-label={`Pré-visualizar "${item.title}"`}
+                          className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-faint transition-colors duration-150 hover:text-calendula-deep"
+                        >
+                          <Eye className="h-4 w-4" strokeWidth={2} />
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </main>
+          </div>
         )}
       </div>
 
