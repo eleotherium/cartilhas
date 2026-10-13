@@ -59,6 +59,30 @@ body {
   font-family: var(--font-sans);
 }
 
+/* ---------- Barra de rolagem própria da página ---------- */
+/* O gap direito foi reduzido pra 1/3 do esquerdo - a barra padrão do
+   navegador (cinza, ~15-17px) ficaria grande demais perto da borda nesse
+   espaço mais apertado. Mesmo tratamento do `.quiet-scroll` do modal de
+   leitura, só que global e um pouco mais grossa (8px, não 6px) por ser a
+   barra principal de navegação do site inteiro, não uma secundária. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(140 133 119 / 0.4) transparent;
+}
+html::-webkit-scrollbar {
+  width: 8px;
+}
+html::-webkit-scrollbar-track {
+  background: transparent;
+}
+html::-webkit-scrollbar-thumb {
+  background: rgb(140 133 119 / 0.35);
+  border-radius: 999px;
+}
+html::-webkit-scrollbar-thumb:hover {
+  background: rgb(140 133 119 / 0.55);
+}
+
 button:not(:disabled),
 [role="button"]:not(:disabled) {
   cursor: pointer;

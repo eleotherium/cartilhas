@@ -59,7 +59,7 @@ export function CartilhaCard({ cartilha, index, onOpen }: CartilhaCardProps) {
       whileHover={{ y: -4 }}
       whileTap={{ scale: 0.98 }}
       style={{ rotateX: reduceMotion ? 0 : rotateX, rotateY: reduceMotion ? 0 : rotateY, transformPerspective: 900 }}
-      className="group glass-card mb-6 block w-full break-inside-avoid rounded-[28px] p-6 text-left transition-shadow duration-200 hover:shadow-[0_24px_48px_-20px_rgb(212_65_7_/_0.4),0_12px_60px_-24px_rgb(91_42_134_/_0.35)]"
+      className="group glass-card block w-full rounded-[28px] p-6 text-left transition-shadow duration-200 hover:shadow-[0_24px_48px_-20px_rgb(212_65_7_/_0.4),0_12px_60px_-24px_rgb(91_42_134_/_0.35)]"
     >
       <span
         className={cn(
