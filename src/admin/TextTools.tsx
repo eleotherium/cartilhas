@@ -31,7 +31,7 @@ export function ShareButton({ id }: { id: number }) {
   const [copied, setCopied] = useState(false)
 
   async function handleShare() {
-    const url = `${window.location.origin}/?t=${id}`
+    const url = `${window.location.origin}/t/${id}`
     try {
       await navigator.clipboard.writeText(url)
       setCopied(true)
@@ -107,13 +107,13 @@ export function StatsButton({ id }: { id: number }) {
               <>
                 <div className="flex items-center justify-center gap-4">
                   <div className="text-center">
-                    <p className="font-serif text-2xl font-bold text-ink">{stats.allTime.opens.toLocaleString("pt-BR")}</p>
-                    <p className="mt-0.5 text-[10px] uppercase tracking-[0.04em] text-ink-faint">Visualização</p>
+                    <p className="font-serif text-2xl font-bold text-calendula-deep">{stats.allTime.opens.toLocaleString("pt-BR")}</p>
+                    <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-ink-soft">Visualização</p>
                   </div>
                   <div className="h-9 w-px bg-ink/10" />
                   <div className="text-center">
-                    <p className="font-serif text-2xl font-bold text-ink">{stats.allTime.reads.toLocaleString("pt-BR")}</p>
-                    <p className="mt-0.5 text-[10px] uppercase tracking-[0.04em] text-ink-faint">Leitura</p>
+                    <p className="font-serif text-2xl font-bold text-violeta-deep">{stats.allTime.reads.toLocaleString("pt-BR")}</p>
+                    <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-ink-soft">Leitura</p>
                   </div>
                 </div>
                 <p className="mt-2 text-center text-xs text-ink-faint">
@@ -128,21 +128,30 @@ export function StatsButton({ id }: { id: number }) {
   )
 }
 
+// Layout horizontal, não mais empilhado - o rótulo de período ("Hoje",
+// "7 dias"...) fica numa coluna estreita à esquerda, vertical-centralizada
+// junto dos dois números, em vez de numa linha própria abaixo deles. Com
+// isso o cartão aproveita a largura disponível em vez de sobrar vazio dos
+// lados enquanto os números ficam pequenos no meio. Números com cor própria
+// (calêndula = visualização, violeta = leitura - mesmo par de cores do
+// StatsPanel) e rótulos em `ink-soft` (não `ink-faint`) corrigem o visual
+// "apagado" - `ink-faint` é claro demais pra carregar texto em caixa alta
+// pequena e ainda ler como importante.
 function MetricCard({ label, metrics, highlight }: { label: string; metrics: StatsWindow; highlight?: boolean }) {
   return (
-    <div className={cn("rounded-2xl px-3 py-3", highlight ? "card-highlight-mixed" : "glass-card")}>
-      <div className="flex items-center justify-center gap-3">
+    <div className={cn("flex items-center gap-4 rounded-2xl px-4 py-3.5", highlight ? "card-highlight-mixed" : "glass-card")}>
+      <p className="w-[72px] shrink-0 text-[10px] font-bold uppercase leading-tight tracking-[0.03em] text-ink-soft">{label}</p>
+      <div className="h-9 w-px shrink-0 bg-ink/10" />
+      <div className="flex flex-1 items-center justify-between gap-3">
         <div className="text-center">
-          <p className="font-serif text-xl font-bold text-ink">{metrics.opens.toLocaleString("pt-BR")}</p>
-          <p className="mt-0.5 text-[9px] uppercase tracking-[0.04em] text-ink-faint">Visualização</p>
+          <p className="font-serif text-2xl font-bold text-calendula-deep">{metrics.opens.toLocaleString("pt-BR")}</p>
+          <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] text-ink-soft">Visualização</p>
         </div>
-        <div className="h-8 w-px shrink-0 bg-ink/10" />
         <div className="text-center">
-          <p className="font-serif text-xl font-bold text-ink">{metrics.reads.toLocaleString("pt-BR")}</p>
-          <p className="mt-0.5 text-[9px] uppercase tracking-[0.04em] text-ink-faint">Leitura</p>
+          <p className="font-serif text-2xl font-bold text-violeta-deep">{metrics.reads.toLocaleString("pt-BR")}</p>
+          <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] text-ink-soft">Leitura</p>
         </div>
       </div>
-      <p className="mt-2 text-center text-[11px] uppercase tracking-[0.05em] text-ink-faint">{label}</p>
     </div>
   )
 }
@@ -188,13 +197,14 @@ export function TextStatsStrip({ id, period }: { id: number; period: PeriodValue
   cards.push({ key: "30d", label: "30 dias", window: stats.last30d })
 
   return (
-    // `flex-wrap`: cada cartão precisa de espaço pra dois números lado a
-    // lado ("visualização" + "leitura"), 3-4 cartões numa linha só estouram
-    // a largura no mobile (visto de verdade) - `min-w-[150px]` garante uma
-    // largura mínima legível antes de quebrar linha.
+    // `flex-wrap`: cada cartão agora é uma linha (rótulo + divisor + dois
+    // números lado a lado), bem mais largo que a versão empilhada antiga -
+    // `min-w-[260px]` evita espremer os números/legendas antes de quebrar
+    // linha (visto de verdade no mobile, onde os 3-4 cartões empilham um por
+    // linha em vez de dividir a largura estreita).
     <div className="flex flex-wrap gap-3">
       {cards.map((card) => (
-        <div key={card.key} className="min-w-[150px] flex-1">
+        <div key={card.key} className="min-w-[260px] flex-1">
           <MetricCard label={card.label} metrics={card.window} highlight={card.highlight} />
         </div>
       ))}

@@ -1,7 +1,8 @@
 import { motion, useReducedMotion } from "motion/react"
-import { useLayoutEffect, useRef, useState } from "react"
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react"
 import assinatura from "@/assets/assinatura.png"
 import { EASE_OUT } from "@/lib/motion"
+import { cn } from "@/lib/utils"
 
 const TITLE = "Cartilhas"
 
@@ -35,8 +36,19 @@ function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t
 }
 
-export function AppHeader() {
+interface AppHeaderProps {
+  /** "full": cabeçalho público, centralizado, com a revelação cinética letra
+   * a letra (ver CALIBRATION acima). "compact": versão pro admin - menor,
+   * alinhada à esquerda pra caber ao lado de botões de ação, sem a
+   * animação de entrada (o admin troca de tela com frequência alta demais
+   * pra repetir essa revelação a cada navegação, ver filosofia de
+   * animação em emil-design-eng). */
+  variant?: "full" | "compact"
+}
+
+export function AppHeader({ variant = "full" }: AppHeaderProps) {
   const reduceMotion = useReducedMotion()
+  const compact = variant === "compact"
   const wrapperRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
   const [sigBox, setSigBox] = useState<{
@@ -107,17 +119,40 @@ export function AppHeader() {
     }
   }, [])
 
+  const signatureStyle: CSSProperties | undefined = sigBox
+    ? {
+        left: sigBox.left,
+        top: sigBox.top,
+        width: sigBox.width,
+        height: sigBox.height,
+        backgroundColor: "var(--color-calendula-deep)",
+        WebkitMaskImage: `url(${assinatura})`,
+        maskImage: `url(${assinatura})`,
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+      }
+    : undefined
+
   return (
-    <header className="relative mb-[66px] text-center">
+    <header className={cn("relative", compact ? "inline-block text-left" : "mb-[66px] text-center")}>
       <div ref={wrapperRef} className="relative inline-block">
         {/* Revelação cinética única na primeira carga: cada letra sobe com
             blur (ver docs/motion-principles-web.md). Cor sólida só, sem
-            degradê - o resto da página já carrega a mistura de cor. */}
+            degradê - o resto da página já carrega a mistura de cor. Só no
+            cabeçalho público ("full") - o do admin troca de tela demais
+            pra repetir essa entrada toda vez. */}
         <h1
           ref={titleRef}
-          className="select-none font-serif text-5xl font-bold leading-none tracking-tight text-calendula-deep sm:text-6xl lg:text-7xl"
+          className={cn(
+            "select-none font-serif font-bold leading-none tracking-tight text-calendula-deep",
+            compact ? "text-3xl sm:text-4xl" : "text-5xl sm:text-6xl lg:text-7xl",
+          )}
         >
-          {reduceMotion ? (
+          {compact || reduceMotion ? (
             TITLE
           ) : (
             <span aria-label={TITLE}>
@@ -142,30 +177,19 @@ export function AppHeader() {
             calibradas à mão em tools/signature-align-standalone.html (ver
             CALIBRATION acima) - não é mais uma âncora geométrica no "s", é
             composição visual escolhida diretamente sobre o título real. */}
-        {sigBox && (
-          <motion.div
-            aria-hidden
-            initial={reduceMotion ? { opacity: 0, rotate: sigBox.rotate } : { opacity: 0, scale: 0.9, rotate: sigBox.rotate }}
-            animate={reduceMotion ? { opacity: 0.85, rotate: sigBox.rotate } : { opacity: 0.85, scale: 1, rotate: sigBox.rotate }}
-            transition={{ duration: 0.5, ease: EASE_OUT, delay: 0.15 + TITLE.length * 0.035 }}
-            className="pointer-events-none absolute select-none"
-            style={{
-              left: sigBox.left,
-              top: sigBox.top,
-              width: sigBox.width,
-              height: sigBox.height,
-              backgroundColor: "var(--color-calendula-deep)",
-              WebkitMaskImage: `url(${assinatura})`,
-              maskImage: `url(${assinatura})`,
-              WebkitMaskSize: "contain",
-              maskSize: "contain",
-              WebkitMaskRepeat: "no-repeat",
-              maskRepeat: "no-repeat",
-              WebkitMaskPosition: "center",
-              maskPosition: "center",
-            }}
-          />
-        )}
+        {sigBox &&
+          (compact ? (
+            <div aria-hidden className="pointer-events-none absolute select-none opacity-[0.85]" style={{ ...signatureStyle, transform: `rotate(${sigBox.rotate}deg)` }} />
+          ) : (
+            <motion.div
+              aria-hidden
+              initial={reduceMotion ? { opacity: 0, rotate: sigBox.rotate } : { opacity: 0, scale: 0.9, rotate: sigBox.rotate }}
+              animate={reduceMotion ? { opacity: 0.85, rotate: sigBox.rotate } : { opacity: 0.85, scale: 1, rotate: sigBox.rotate }}
+              transition={{ duration: 0.5, ease: EASE_OUT, delay: 0.15 + TITLE.length * 0.035 }}
+              className="pointer-events-none absolute select-none"
+              style={signatureStyle}
+            />
+          ))}
       </div>
     </header>
   )

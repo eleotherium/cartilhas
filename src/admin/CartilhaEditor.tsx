@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { Editor } from "@tiptap/react"
 import { ArrowLeft, ChevronDown, Trash2, Save } from "lucide-react"
+import { AppHeader } from "@/components/AppHeader"
 import { CATEGORY_META, CATEGORY_ORDER } from "@/lib/categories"
 import { cn } from "@/lib/utils"
 import { PeriodSelector } from "./PeriodSelector"
@@ -183,25 +184,28 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* `flex-wrap`: em telas estreitas o cabeçalho tem botão de voltar +
-          seletor de período (mais largo que os ícones redondos que tinha
-          antes) + compartilhar + excluir + salvar - não cabem numa linha só
-          sem estourar a largura da tela (visto de verdade no mobile). */}
-      <div className="flex flex-wrap items-center justify-between gap-y-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="glass-card flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-ink-soft hover:text-calendula-deep"
-        >
-          <ArrowLeft className="h-4 w-4" strokeWidth={2} />
-          Voltar
-        </button>
-        <div className="flex flex-wrap items-center gap-2">
-          {id !== "new" && (
-            <>
-              <PeriodSelector value={period} onChange={setPeriod} />
-              <ShareButton id={id} />
-              <span className="mx-1 h-5 w-px bg-ink/10" />
+      {/* Hero compacto + ações em 2 linhas ao lado, não mais um cabeçalho
+          de largura total com "Voltar" de um lado e os botões do outro
+          (pedido explícito: reduzir o espaço vertical que o hero ocupa).
+          Linha 1 (Excluir/Salvar) e linha 2 (período/compartilhar) ficam
+          sempre encostadas na borda direita, `flex-wrap` garante que
+          continuam legíveis se a tela for estreita. */}
+      <div className="flex flex-wrap items-start justify-between gap-6">
+        <div>
+          <AppHeader variant="compact" />
+          <button
+            type="button"
+            onClick={onBack}
+            className="mt-1.5 flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-faint transition-colors duration-150 hover:text-calendula-deep"
+          >
+            <ArrowLeft className="h-3 w-3" strokeWidth={2.5} />
+            Voltar
+          </button>
+        </div>
+
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {id !== "new" && (
               <button
                 type="button"
                 onClick={handleDelete}
@@ -211,17 +215,23 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
                 <Trash2 className="h-4 w-4" strokeWidth={2} />
                 Excluir
               </button>
-            </>
+            )}
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="gradient-calendula flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold text-paper shadow-[0_8px_20px_-6px_rgb(212_65_7_/_0.5)] disabled:opacity-60"
+            >
+              <Save className="h-4 w-4" strokeWidth={2} />
+              {saving ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
+          {id !== "new" && (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <PeriodSelector value={period} onChange={setPeriod} />
+              <ShareButton id={id} />
+            </div>
           )}
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="gradient-calendula flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold text-paper shadow-[0_8px_20px_-6px_rgb(212_65_7_/_0.5)] disabled:opacity-60"
-          >
-            <Save className="h-4 w-4" strokeWidth={2} />
-            {saving ? "Salvando..." : "Salvar"}
-          </button>
         </div>
       </div>
 

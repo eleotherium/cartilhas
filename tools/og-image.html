@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Gerar imagem de preview social</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,700;1,400&family=Outfit:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+  /* Gera as imagens de preview social (og:image) reaproveitando a mesma
+     composição do cabeçalho do site (título em Cormorant Garamond + a
+     assinatura em CSS mask por cima, ver src/components/AppHeader.tsx) -
+     não é a aplicação React de verdade porque o og:image é estático
+     (crawler de rede social não executa JS), então um HTML standalone
+     com a MESMA receita visual (cores, fontes, grão de fundo) é o jeito
+     mais simples de produzir o arquivo sem montar infraestrutura de
+     renderização server-side só pra isso. Uso único (ver README abaixo) -
+     mesmo padrão de tools/signature-align-standalone.html.
+
+     Como gerar (file:// é bloqueado pelo Playwright MCP, por isso o passo
+     de servidor estático abaixo):
+     1. `python -m http.server <porta>` na raiz do projeto (não em tools/ -
+        o CSS referencia `../src/assets/assinatura.png`, caminho relativo a
+        este arquivo).
+     2. Abrir `http://localhost:<porta>/tools/og-image.html` (paisagem,
+        1200x630) e `?square=1` no final da URL (quadrado, 1200x1200 - a
+        query evita alternar a classe em runtime, que deixou o screenshot
+        de elemento instável no Playwright).
+     3. Screenshot da viewport inteira (não só da #frame - screenshot de
+        elemento ficou instável pro tamanho quadrado) com viewport igual ou
+        maior que o frame, depois recortar pra (0,0,1200,630)/(0,0,1200,1200)
+        com PIL - o frame fica sempre ancorado no canto superior esquerdo
+        (`margin: 0` no body).
+     4. Reexportar como JPEG qualidade ~90 (não manter o PNG) - o grão de
+        fundo tem ruído alto-frequência que o PNG comprime mal (~700KB-1MB);
+        em JPEG cai pra ~50-60KB sem perda visível, e não há texto fino o
+        bastante pra sofrer artefato visível nessa qualidade.
+     5. Salvar como public/og-image.jpg (paisagem) e
+        public/og-image-square.jpg (quadrado).
+  */
+  :root {
+    --paper: #faf7f1;
+    --ink: #231f1a;
+    --ink-soft: #55504a;
+    --calendula: #d44107;
+    --calendula-bright: #ff8a3d;
+    --calendula-deep: #8f2a05;
+    --violeta: #5b2a86;
+    --violeta-bright: #8b4fc9;
+    --noite: #211a28;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: #e8e2db;
+    font-family: "Outfit", sans-serif;
+  }
+  #frame {
+    position: relative;
+    width: 1200px;
+    height: 630px;
+    overflow: hidden;
+    background: var(--paper);
+  }
+  #frame.square {
+    height: 1200px;
+  }
+
+  .orb {
+    position: absolute;
+    border-radius: 999px;
+    filter: blur(50px);
+  }
+
+  .fade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgb(250 247 241 / 0) 0%, rgb(250 247 241 / 0.5) 100%);
+  }
+
+  .grain {
+    position: absolute;
+    inset: 0;
+    opacity: 0.06;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .title-wrap {
+    position: relative;
+    display: inline-block;
+  }
+
+  h1 {
+    margin: 0;
+    font-family: "Cormorant Garamond", serif;
+    font-weight: 700;
+    font-size: 150px;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    color: var(--calendula-deep);
+    user-select: none;
+  }
+
+  .signature {
+    position: absolute;
+    pointer-events: none;
+    background-color: var(--calendula-deep);
+    opacity: 0.85;
+    -webkit-mask-image: url("../src/assets/assinatura.png");
+    mask-image: url("../src/assets/assinatura.png");
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
+
+  .tagline {
+    margin-top: 28px;
+    font-size: 25px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--ink-soft);
+  }
+</style>
+</head>
+<body>
+  <div id="frame" class="">
+    <div class="orb" style="top:-18%; left:-10%; width:760px; height:760px; background: radial-gradient(circle at 35% 35%, rgb(255 138 61 / 0.5), rgb(212 65 7 / 0.16) 55%, transparent 72%);"></div>
+    <div class="orb" style="top:-14%; right:-12%; width:660px; height:660px; background: radial-gradient(circle at 60% 40%, rgb(139 79 201 / 0.42), rgb(91 42 134 / 0.14) 55%, transparent 70%);"></div>
+    <div class="orb" style="bottom:-30%; left:20%; width:820px; height:820px; background: radial-gradient(circle at 50% 50%, rgb(212 65 7 / 0.32), rgb(91 42 134 / 0.1) 60%, transparent 74%);"></div>
+    <div class="orb" style="bottom:-16%; right:-4%; width:560px; height:560px; background: radial-gradient(circle at 50% 50%, rgb(33 26 40 / 0.26), rgb(91 42 134 / 0.12) 55%, transparent 72%);"></div>
+    <div class="fade"></div>
+    <div class="grain"></div>
+
+    <div class="content">
+      <div class="title-wrap" id="titleWrap">
+        <h1 id="title">Cartilhas</h1>
+        <div class="signature" id="signature"></div>
+      </div>
+      <p class="tagline">Poemas, crônicas, contos e ensaios</p>
+    </div>
+  </div>
+
+  <script>
+    // Mesma lógica de ancoragem do AppHeader.tsx (ver CALIBRATION.desktop
+    // lá), só que resolvida uma vez contra um tamanho de título fixo (não
+    // precisa de lerp entre dois breakpoints - esta página só existe nesse
+    // tamanho).
+    function position() {
+      var wrap = document.getElementById("titleWrap")
+      var title = document.getElementById("title")
+      var signature = document.getElementById("signature")
+      var tagline = document.querySelector(".tagline")
+      var titleHeight = title.getBoundingClientRect().height
+      var SIGNATURE_ASPECT = 1191 / 878
+      var dxFrac = -78.5 / 72
+      var dyFrac = -60.5 / 72
+      var scale = 115.9 / 72
+      var height = titleHeight * scale
+      var width = height * SIGNATURE_ASPECT
+      signature.style.width = width + "px"
+      signature.style.height = height + "px"
+      signature.style.left = (title.offsetWidth + dxFrac * titleHeight) + "px"
+      signature.style.top = (title.offsetHeight + dyFrac * titleHeight) + "px"
+
+      // A assinatura estoura bem abaixo da borda do título (é o ponto -
+      // ela "assina" por cima dele) - sem compensar isso a legenda abaixo
+      // fica por baixo do traço. Mede a sobra de verdade em vez de chutar
+      // uma margem fixa, já que depende da calibração acima.
+      var wrapBottom = wrap.getBoundingClientRect().bottom
+      var sigBottom = signature.getBoundingClientRect().bottom
+      var overflow = Math.max(0, sigBottom - wrapBottom)
+      tagline.style.marginTop = (28 + overflow) + "px"
+    }
+    if (new URLSearchParams(location.search).get("square")) {
+      document.getElementById("frame").classList.add("square")
+    }
+    document.fonts.ready.then(position)
+    window.addEventListener("resize", position)
+    position()
+  </script>
+</body>
+</html>

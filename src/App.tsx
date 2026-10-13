@@ -55,28 +55,31 @@ function App() {
   // leitura (ou, se o texto já cabe na tela sem rolar, ficar 5s aberto já
   // conta). Não é mais "abriu = leu" feito aqui.
 
-  // Captura o `?t=<id>` da URL original de forma síncrona (inicializador
-  // "preguiçoso" do useState, roda durante o render, antes de qualquer
-  // efeito) - se isso fosse lido dentro de um efeito comum, o efeito de
-  // `replaceState` logo abaixo (que roda toda vez que `activeId` é null,
-  // inclusive no mount) já teria apagado o `t` da URL antes da leitura.
+  // Captura o texto compartilhado na URL original de forma síncrona
+  // (inicializador "preguiçoso" do useState, roda durante o render, antes
+  // de qualquer efeito) - se isso fosse lido dentro de um efeito comum, o
+  // efeito de `replaceState` logo abaixo (que roda toda vez que `activeId`
+  // é null, inclusive no mount) já teria apagado o `t`/rota da URL antes
+  // da leitura. Aceita os dois formatos: a rota própria `/t/<id>` (nova,
+  // o que o botão de compartilhar gera agora) e o `?t=<id>` antigo (links
+  // já compartilhados antes de existir rota - continuam abrindo).
   const [initialSharedId] = useState<number | null>(() => {
-    const id = Number(new URLSearchParams(window.location.search).get("t"))
-    return Number.isInteger(id) ? id : null
+    const pathMatch = window.location.pathname.match(/^\/t\/(\d+)$/)
+    if (pathMatch) return Number(pathMatch[1])
+    const queryId = Number(new URLSearchParams(window.location.search).get("t"))
+    return Number.isInteger(queryId) ? queryId : null
   })
 
-  // Reflete o texto aberto na URL (`?t=<id>`) pra permitir compartilhar um
+  // Reflete o texto aberto na URL (`/t/<id>`) pra permitir compartilhar um
   // link direto pra um texto específico (ver botão de compartilhar no
   // admin) - `replaceState`, não `pushState`, pra não empilhar o
   // histórico do navegador a cada abertura/fechamento/navegação dentro
-  // do leitor.
+  // do leitor. Um link antigo em `?t=` é canonizado pra `/t/<id>` assim que
+  // abre.
   useEffect(() => {
     const url = new URL(window.location.href)
-    if (activeId === null) {
-      url.searchParams.delete("t")
-    } else {
-      url.searchParams.set("t", String(activeId))
-    }
+    url.searchParams.delete("t")
+    url.pathname = activeId === null ? "/" : `/t/${activeId}`
     window.history.replaceState(null, "", url)
   }, [activeId])
 

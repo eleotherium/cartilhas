@@ -17,6 +17,25 @@ type View = { name: "list" } | { name: "edit"; id: number | "new" }
 
 const ALL_CATEGORIES = new Set<Category>(CATEGORY_ORDER)
 
+// Reflete a tela atual na URL (/admin, /admin/novo, /admin/:id) - antes o
+// estado só existia em memória (useState puro), então recarregar a página
+// ou compartilhar o link enquanto editava um texto sempre voltava pra
+// lista, sem rota própria pra apontar de volta pra aquele texto. `pushState`
+// + `popstate` dão navegação de verdade (voltar do navegador funciona) sem
+// precisar de react-router só pra estas poucas telas.
+function parseViewFromPath(): View {
+  const rest = window.location.pathname.replace(/^\/admin\/?/, "")
+  if (rest === "") return { name: "list" }
+  if (rest === "novo") return { name: "edit", id: "new" }
+  const id = Number(rest)
+  return Number.isInteger(id) && id > 0 ? { name: "edit", id } : { name: "list" }
+}
+
+function pathForView(view: View): string {
+  if (view.name === "list") return "/admin"
+  return view.id === "new" ? "/admin/novo" : `/admin/${view.id}`
+}
+
 // Ícone de filtro (não mais um label por categoria) - abre um popover de
 // seleção múltipla, pedido explícito. Mostra uma bolinha com a contagem
 // quando o filtro está ativo (nem todas as categorias selecionadas), pra
@@ -107,7 +126,7 @@ function CategoryFilterButton({ selected, onChange }: { selected: Set<Category>;
 }
 
 export function AdminApp() {
-  const [view, setView] = useState<View>({ name: "list" })
+  const [view, setView] = useState<View>(() => parseViewFromPath())
   const [items, setItems] = useState<Cartilha[] | null>(null)
   const [error, setError] = useState(false)
   const [query, setQuery] = useState("")
@@ -135,6 +154,19 @@ export function AdminApp() {
     if (view.name === "list") load()
   }, [view, load])
 
+  function navigate(next: View) {
+    window.history.pushState(null, "", pathForView(next))
+    setView(next)
+  }
+
+  useEffect(() => {
+    function handlePopState() {
+      setView(parseViewFromPath())
+    }
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [])
+
   const filtered = useMemo(() => {
     const all = items ?? []
     const needle = normalize(query.trim())
@@ -159,103 +191,110 @@ export function AdminApp() {
     <div className="relative min-h-dvh">
       <Backdrop />
       <div className="relative mx-auto max-w-7xl px-6 py-16 sm:px-10">
-        <AppHeader />
-
-        <div className="mb-10 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-ink-faint">Painel administrativo</p>
-            <a href="/" className="text-sm text-ink-faint underline hover:text-calendula-deep">
-              Ver site público
-            </a>
-          </div>
-          {view.name === "list" && (
-            <div className="flex items-center gap-2">
-              <PeriodSelector value={period} onChange={setPeriod} />
-              <button
-                type="button"
-                onClick={() => setView({ name: "edit", id: "new" })}
-                className="gradient-calendula flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-paper shadow-[0_8px_20px_-6px_rgb(212_65_7_/_0.5)]"
-              >
-                <Plus className="h-4 w-4" strokeWidth={2.5} />
-                Novo texto
-              </button>
-            </div>
-          )}
-        </div>
-
         {view.name === "edit" ? (
-          <CartilhaEditor id={view.id} onBack={() => setView({ name: "list" })} onSaved={() => setView({ name: "list" })} />
-        ) : error ? (
-          <p className="text-ink-faint">Não deu pra carregar os textos. Recarregue a página.</p>
-        ) : items === null ? (
-          <p className="text-ink-faint">Carregando...</p>
+          <CartilhaEditor id={view.id} onBack={() => navigate({ name: "list" })} onSaved={() => navigate({ name: "list" })} />
         ) : (
-          // Dados numa coluna à parte da listagem - não dividem o mesmo
-          // fluxo vertical (pedido explícito: a visualização padrão tava
-          // lendo como uma tela mobile de coluna única mesmo no desktop).
-          // Busca/filtro ficam na coluna da listagem, não na de dados -
-          // são controles DESSA lista, não métricas.
-          <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
-            <aside className="lg:w-[320px] lg:shrink-0">
-              <StatsPanel period={period} />
-            </aside>
-
-            <main className="min-w-0 flex-1">
-              <div className="mb-6 flex items-center gap-3">
-                {/* `min-w-0 flex-1` no wrapper, não no SearchBar em si -
-                    o próprio componente usa `shrink-0` + só `sm:flex-1`
-                    (pensado pra empilhar em coluna no mobile, como faz a
-                    página pública), então sozinho não encolhe nessa linha
-                    sempre-horizontal e estourava a tela estreita (visto de
-                    verdade no mobile - 25px de overflow). */}
-                <div className="min-w-0 flex-1">
-                  <SearchBar value={query} onChange={setQuery} />
-                </div>
-                <CategoryFilterButton selected={categories} onChange={setCategories} />
+          <>
+            {/* Cabeçalho compacto ao lado do hero, não mais em cima dele -
+                o hero em largura total + uma linha de botões embaixo
+                ocupava quase 1/3 da viewport antes de qualquer conteúdo
+                aparecer (pedido explícito pra reduzir isso). */}
+            <div className="mb-10 flex flex-wrap items-start justify-between gap-6">
+              <div>
+                <AppHeader variant="compact" />
+                <p className="mt-1.5 text-xs font-medium uppercase tracking-[0.06em] text-ink-faint">
+                  Painel administrativo ·{" "}
+                  <a href="/" className="text-ink-soft underline hover:text-calendula-deep">
+                    Ver site público
+                  </a>
+                </p>
               </div>
+              <div className="flex items-center gap-2">
+                <PeriodSelector value={period} onChange={setPeriod} />
+                <button
+                  type="button"
+                  onClick={() => navigate({ name: "edit", id: "new" })}
+                  className="gradient-calendula flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-paper shadow-[0_8px_20px_-6px_rgb(212_65_7_/_0.5)]"
+                >
+                  <Plus className="h-4 w-4" strokeWidth={2.5} />
+                  Novo texto
+                </button>
+              </div>
+            </div>
 
-              {filtered.length === 0 ? (
-                <p className="text-ink-faint">Nenhum texto encontrado.</p>
-              ) : (
-                <ul className="flex flex-col gap-3">
-                  {filtered.map((item) => {
-                    const meta = CATEGORY_META[item.category]
-                    return (
-                      <li
-                        key={item.id}
-                        className="glass-card flex items-center gap-1 rounded-[20px] pr-3 transition-shadow duration-150 hover:shadow-[0_12px_30px_-16px_rgb(212_65_7_/_0.4)]"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setView({ name: "edit", id: item.id })}
-                          className="flex min-w-0 flex-1 items-center justify-between gap-4 px-5 py-4 text-left"
-                        >
-                          <div className="min-w-0">
-                            <div className="mb-1 flex items-center gap-2">
-                              <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]", meta.bg, meta.fg)}>
-                                {meta.label}
-                              </span>
-                              <span className="text-xs text-ink-faint">{item.dateLabel}</span>
-                            </div>
-                            <p className="truncate font-serif text-lg font-bold text-ink">{item.title}</p>
-                          </div>
-                          <Pencil className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={2} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPreviewId(item.id)}
-                          aria-label={`Pré-visualizar "${item.title}"`}
-                          className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-faint transition-colors duration-150 hover:text-calendula-deep"
-                        >
-                          <Eye className="h-4 w-4" strokeWidth={2} />
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </main>
-          </div>
+            {error ? (
+              <p className="text-ink-faint">Não deu pra carregar os textos. Recarregue a página.</p>
+            ) : items === null ? (
+              <p className="text-ink-faint">Carregando...</p>
+            ) : (
+              // Dados numa coluna à parte da listagem - não dividem o mesmo
+              // fluxo vertical (pedido explícito: a visualização padrão tava
+              // lendo como uma tela mobile de coluna única mesmo no desktop).
+              // Busca/filtro ficam na coluna da listagem, não na de dados -
+              // são controles DESSA lista, não métricas.
+              <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+                <aside className="lg:w-[320px] lg:shrink-0">
+                  <StatsPanel period={period} />
+                </aside>
+
+                <main className="min-w-0 flex-1">
+                  <div className="mb-6 flex items-center gap-3">
+                    {/* `min-w-0 flex-1` no wrapper, não no SearchBar em si -
+                        o próprio componente usa `shrink-0` + só `sm:flex-1`
+                        (pensado pra empilhar em coluna no mobile, como faz a
+                        página pública), então sozinho não encolhe nessa linha
+                        sempre-horizontal e estourava a tela estreita (visto de
+                        verdade no mobile - 25px de overflow). */}
+                    <div className="min-w-0 flex-1">
+                      <SearchBar value={query} onChange={setQuery} />
+                    </div>
+                    <CategoryFilterButton selected={categories} onChange={setCategories} />
+                  </div>
+
+                  {filtered.length === 0 ? (
+                    <p className="text-ink-faint">Nenhum texto encontrado.</p>
+                  ) : (
+                    <ul className="flex flex-col gap-3">
+                      {filtered.map((item) => {
+                        const meta = CATEGORY_META[item.category]
+                        return (
+                          <li
+                            key={item.id}
+                            className="glass-card flex items-center gap-1 rounded-[20px] pr-3 transition-shadow duration-150 hover:shadow-[0_12px_30px_-16px_rgb(212_65_7_/_0.4)]"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => navigate({ name: "edit", id: item.id })}
+                              className="flex min-w-0 flex-1 items-center justify-between gap-4 px-5 py-4 text-left"
+                            >
+                              <div className="min-w-0">
+                                <div className="mb-1 flex items-center gap-2">
+                                  <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]", meta.bg, meta.fg)}>
+                                    {meta.label}
+                                  </span>
+                                  <span className="text-xs text-ink-faint">{item.dateLabel}</span>
+                                </div>
+                                <p className="truncate font-serif text-lg font-bold text-ink">{item.title}</p>
+                              </div>
+                              <Pencil className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={2} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPreviewId(item.id)}
+                              aria-label={`Pré-visualizar "${item.title}"`}
+                              className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-faint transition-colors duration-150 hover:text-calendula-deep"
+                            >
+                              <Eye className="h-4 w-4" strokeWidth={2} />
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </main>
+              </div>
+            )}
+          </>
         )}
       </div>
 
