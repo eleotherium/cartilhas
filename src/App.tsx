@@ -36,12 +36,31 @@ function App() {
   const rowRef = useRef<HTMLDivElement>(null)
   const [topOffset, setTopOffset] = useState(140)
 
+  // O ÍCONE (não o painel) fica centralizado no vão vazio entre a linha de
+  // busca/ordenação e o topo da grade de cards - não alinhado com o topo da
+  // busca como o painel. Precisa de dois pontos medidos de verdade (borda
+  // de baixo da linha de busca, borda de cima do conteúdo seguinte), não
+  // metade de uma margem chutada - `-translate-y-1/2` no elemento fixed faz
+  // a centralização final sem precisar saber a altura do ícone.
+  const searchRowRef = useRef<HTMLDivElement>(null)
+  const contentTopRef = useRef<HTMLDivElement>(null)
+  const [toggleOffset, setToggleOffset] = useState(140)
+
   useLayoutEffect(() => {
     function measure() {
       if (!rowRef.current) return
       setTopOffset(Math.round(rowRef.current.getBoundingClientRect().top + window.scrollY))
+      if (searchRowRef.current && contentTopRef.current) {
+        const searchBottom = searchRowRef.current.getBoundingClientRect().bottom
+        const contentTop = contentTopRef.current.getBoundingClientRect().top
+        setToggleOffset(Math.round((searchBottom + contentTop) / 2 + window.scrollY))
+      }
     }
     measure()
+    // fonts.ready: a fonte serifada do título carrega async e muda a altura
+    // do cabeçalho depois da primeira medição (mesmo motivo do AppHeader) -
+    // sem isso o vão fica medido contra a fonte de fallback.
+    document.fonts?.ready.then(measure)
     window.addEventListener("resize", measure)
     return () => window.removeEventListener("resize", measure)
   }, [])
@@ -100,8 +119,8 @@ function App() {
           CategorySidebar.tsx para o porquê de não ser `sticky`). */}
       <CategorySidebar open={sidebarOpen} topOffset={topOffset} {...sidebarProps} />
       <div
-        className="fixed z-20 hidden -translate-x-[60px] lg:block"
-        style={{ top: topOffset, left: "max(2.5rem, calc((100vw - 1280px) / 2 + 2.5rem))" }}
+        className="fixed z-20 hidden -translate-x-[60px] -translate-y-1/2 lg:block"
+        style={{ top: toggleOffset, left: "max(2.5rem, calc((100vw - 1280px) / 2 + 2.5rem))" }}
       >
         <SidebarToggle open={sidebarOpen} onToggleOpen={() => setSidebarOpen((o) => !o)} />
       </div>
@@ -126,7 +145,7 @@ function App() {
           />
 
           <main className="min-w-0 flex-1">
-            <div className="mb-10 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div ref={searchRowRef} className="mb-10 flex flex-col gap-3 sm:flex-row sm:items-center">
               <SearchBar value={query} onChange={setQuery} />
               <div className="flex justify-center sm:contents">
                 <SortToggle
@@ -138,22 +157,24 @@ function App() {
               </div>
             </div>
 
-            {visible.length === 0 ? (
-              <EmptyState query={query} onClear={() => setQuery("")} />
-            ) : (
-              <div className={`columns-1 gap-6 sm:columns-2 xl:columns-3 ${!sidebarOpen ? "2xl:columns-4" : ""}`}>
-                <AnimatePresence>
-                  {visible.map((cartilha, index) => (
-                    <CartilhaCard
-                      key={cartilha.id}
-                      cartilha={cartilha}
-                      index={index}
-                      onOpen={(c) => setActiveId(c.id)}
-                    />
-                  ))}
-                </AnimatePresence>
-              </div>
-            )}
+            <div ref={contentTopRef}>
+              {visible.length === 0 ? (
+                <EmptyState query={query} onClear={() => setQuery("")} />
+              ) : (
+                <div className={`columns-1 gap-6 sm:columns-2 xl:columns-3 ${!sidebarOpen ? "2xl:columns-4" : ""}`}>
+                  <AnimatePresence>
+                    {visible.map((cartilha, index) => (
+                      <CartilhaCard
+                        key={cartilha.id}
+                        cartilha={cartilha}
+                        index={index}
+                        onOpen={(c) => setActiveId(c.id)}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
           </main>
         </div>
       </div>

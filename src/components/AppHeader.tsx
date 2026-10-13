@@ -108,7 +108,7 @@ export function AppHeader() {
   }, [])
 
   return (
-    <header className="relative mb-10 text-center">
+    <header className="relative mb-[66px] text-center">
       <div ref={wrapperRef} className="relative inline-block">
         {/* Revelação cinética única na primeira carga: cada letra sobe com
             blur (ver docs/motion-principles-web.md). Cor sólida só, sem
