@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { CATEGORY_META } from "@/lib/categories"
+import { Signature } from "@/components/Signature"
 import { cn } from "@/lib/utils"
 import { DURATION, EASE_OUT, STAGGER_CAP, STAGGER_STEP } from "@/lib/motion"
 import type { Cartilha } from "@/types/cartilha"
@@ -288,6 +289,24 @@ export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext,
                           </motion.p>
                         ))}
                       </div>
+
+                      {/* Assinatura no final de cada texto, como quem
+                          assina embaixo de uma carta/poema - não decorativa
+                          só no cabeçalho do site, aqui marca o fim de
+                          verdade do conteúdo (inclusive pra "leitura até o
+                          fim": rolar até aqui é rolar até o fim). */}
+                      <motion.div
+                        initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{
+                          duration: 0.4,
+                          ease: EASE_OUT,
+                          delay: 0.1 + Math.min(paragraphs.length, STAGGER_CAP) * STAGGER_STEP,
+                        }}
+                        className="mt-10 flex justify-end"
+                      >
+                        <Signature height={40} className="opacity-70" />
+                      </motion.div>
                     </motion.div>
                   </AnimatePresence>
                 </div>
