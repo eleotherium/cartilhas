@@ -197,25 +197,27 @@ export function AdminApp() {
           <>
             {/* Hero continua centralizado na página (igual o site público -
                 pedido explícito, não pode "sair do centro"), só que
-                compacto e dividindo a linha com os botões em vez de ter uma
-                faixa cheia só pra ele: grid de 3 colunas, a da ponta
-                esquerda fica vazia só pra equilibrar a largura da direita
-                (onde ficam os botões), garantindo que a coluna do meio
-                (hero) continue matematicamente centralizada. No mobile vira
-                uma coluna só empilhada - não há largura sobrando pra
-                bancar o equilíbrio das pontas. */}
+                compacto e dividindo a linha com os outros dois blocos em
+                vez de ter uma faixa cheia só pra ele: grid de 3 colunas,
+                "Painel administrativo" vai pra ponta esquerda (pedido
+                explícito), os botões ficam na direita, e as duas pontas -
+                tendo conteúdo real nos dois lados agora, não só uma vazia -
+                equilibram a coluna do meio (hero) matematicamente
+                centralizada. A ordem no DOM continua hero/legenda/ações
+                (leitura natural, é também a ordem empilhada no mobile) - só
+                a ORDEM VISUAL no desktop (`lg:order-*`) rearranja pras
+                colunas, sem mudar a ordem de leitura/foco por teclado. */}
             <div className="mb-10 grid grid-cols-1 items-center justify-items-center gap-4 lg:grid-cols-[1fr_auto_1fr] lg:justify-items-stretch lg:gap-6">
-              <div aria-hidden className="hidden lg:block" />
-              <div className="text-center">
+              <div className="text-center lg:order-2">
                 <AppHeader variant="compact" />
-                <p className="mt-1.5 text-xs font-medium uppercase tracking-[0.06em] text-ink-faint">
-                  Painel administrativo ·{" "}
-                  <a href="/" className="text-ink-soft underline hover:text-calendula-deep">
-                    Ver site público
-                  </a>
-                </p>
               </div>
-              <div className="flex items-center gap-2 lg:justify-self-end">
+              <p className="text-center text-xs font-medium uppercase tracking-[0.06em] text-ink-faint lg:order-1 lg:self-center lg:text-left">
+                Painel administrativo ·{" "}
+                <a href="/" className="text-ink-soft underline hover:text-calendula-deep">
+                  Ver site público
+                </a>
+              </p>
+              <div className="flex items-center gap-2 lg:order-3 lg:justify-self-end">
                 <PeriodSelector value={period} onChange={setPeriod} />
                 <button
                   type="button"
