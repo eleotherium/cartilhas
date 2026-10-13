@@ -195,12 +195,18 @@ export function AdminApp() {
           <CartilhaEditor id={view.id} onBack={() => navigate({ name: "list" })} onSaved={() => navigate({ name: "list" })} />
         ) : (
           <>
-            {/* Cabeçalho compacto ao lado do hero, não mais em cima dele -
-                o hero em largura total + uma linha de botões embaixo
-                ocupava quase 1/3 da viewport antes de qualquer conteúdo
-                aparecer (pedido explícito pra reduzir isso). */}
-            <div className="mb-10 flex flex-wrap items-start justify-between gap-6">
-              <div>
+            {/* Hero continua centralizado na página (igual o site público -
+                pedido explícito, não pode "sair do centro"), só que
+                compacto e dividindo a linha com os botões em vez de ter uma
+                faixa cheia só pra ele: grid de 3 colunas, a da ponta
+                esquerda fica vazia só pra equilibrar a largura da direita
+                (onde ficam os botões), garantindo que a coluna do meio
+                (hero) continue matematicamente centralizada. No mobile vira
+                uma coluna só empilhada - não há largura sobrando pra
+                bancar o equilíbrio das pontas. */}
+            <div className="mb-10 grid grid-cols-1 items-center justify-items-center gap-4 lg:grid-cols-[1fr_auto_1fr] lg:justify-items-stretch lg:gap-6">
+              <div aria-hidden className="hidden lg:block" />
+              <div className="text-center">
                 <AppHeader variant="compact" />
                 <p className="mt-1.5 text-xs font-medium uppercase tracking-[0.06em] text-ink-faint">
                   Painel administrativo ·{" "}
@@ -209,7 +215,7 @@ export function AdminApp() {
                   </a>
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 lg:justify-self-end">
                 <PeriodSelector value={period} onChange={setPeriod} />
                 <button
                   type="button"

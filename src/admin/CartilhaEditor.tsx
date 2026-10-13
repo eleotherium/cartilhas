@@ -184,14 +184,16 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Hero compacto + ações em 2 linhas ao lado, não mais um cabeçalho
-          de largura total com "Voltar" de um lado e os botões do outro
-          (pedido explícito: reduzir o espaço vertical que o hero ocupa).
-          Linha 1 (Excluir/Salvar) e linha 2 (período/compartilhar) ficam
-          sempre encostadas na borda direita, `flex-wrap` garante que
-          continuam legíveis se a tela for estreita. */}
-      <div className="flex flex-wrap items-start justify-between gap-6">
-        <div>
+      {/* Hero continua centralizado na página (igual o site público - não
+          pode "sair do centro"), compacto e dividindo a linha com as ações
+          em vez de uma faixa cheia só pra ele: grid de 3 colunas, a ponta
+          esquerda fica vazia só pra equilibrar a largura da direita (onde
+          ficam Excluir/Salvar numa linha e período/compartilhar na outra),
+          garantindo que a coluna do meio (hero) continue matematicamente
+          centralizada. No mobile vira uma coluna só empilhada. */}
+      <div className="grid grid-cols-1 items-center justify-items-center gap-4 lg:grid-cols-[1fr_auto_1fr] lg:items-start lg:justify-items-stretch lg:gap-6">
+        <div aria-hidden className="hidden lg:block" />
+        <div className="text-center">
           <AppHeader variant="compact" />
           <button
             type="button"
@@ -203,8 +205,8 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
           </button>
         </div>
 
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-col items-center gap-2 lg:items-end lg:justify-self-end">
+          <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-end">
             {id !== "new" && (
               <button
                 type="button"
@@ -227,7 +229,7 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
             </button>
           </div>
           {id !== "new" && (
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-end">
               <PeriodSelector value={period} onChange={setPeriod} />
               <ShareButton id={id} />
             </div>
