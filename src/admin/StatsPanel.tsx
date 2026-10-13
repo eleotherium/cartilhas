@@ -99,29 +99,8 @@ export function StatsPanel({ period }: { period: PeriodValue }) {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Sempre uma coluna só, não `sm:grid-cols-2` - este painel agora vive
-          numa barra lateral estreita (ver AdminApp.tsx), e `sm:` reage à
-          largura da VIEWPORT, não do container, então cramaria dois cartões
-          lado a lado mesmo dentro de uma coluna de 320px. */}
-      <div className="grid grid-cols-1 gap-4">
-        <StatCard
-          icon={Users}
-          label="Visitas"
-          value={stats.visitsTotal}
-          series={stats.visitsSeries}
-          colorVar="var(--color-calendula)"
-          periodCaption={periodLabel(period)}
-        />
-        <StatCard
-          icon={Eye}
-          label="Leituras"
-          value={stats.readsTotal}
-          series={stats.readsSeries}
-          colorVar="var(--color-violeta)"
-          periodCaption={periodLabel(period)}
-        />
-      </div>
-
+      {/* "Mais lidos" primeiro - pedido explícito (é o dado mais acionável
+          da barra lateral, o resto é contexto de apoio). */}
       {stats.topReads.length > 0 && (
         <div className="glass-card rounded-[24px] p-5">
           <div className="mb-3 flex items-center gap-2 text-ink-faint">
@@ -147,6 +126,29 @@ export function StatsPanel({ period }: { period: PeriodValue }) {
           </ul>
         </div>
       )}
+
+      {/* Sempre uma coluna só, não `sm:grid-cols-2` - este painel vive numa
+          barra lateral estreita (ver AdminApp.tsx), e `sm:` reage à largura
+          da VIEWPORT, não do container, então cramaria dois cartões lado a
+          lado mesmo dentro de uma coluna de 320px. */}
+      <div className="grid grid-cols-1 gap-4">
+        <StatCard
+          icon={Users}
+          label="Visitas"
+          value={stats.visitsTotal}
+          series={stats.visitsSeries}
+          colorVar="var(--color-calendula)"
+          periodCaption={periodLabel(period)}
+        />
+        <StatCard
+          icon={Eye}
+          label="Leituras"
+          value={stats.readsTotal}
+          series={stats.readsSeries}
+          colorVar="var(--color-violeta)"
+          periodCaption={periodLabel(period)}
+        />
+      </div>
     </div>
   )
 }

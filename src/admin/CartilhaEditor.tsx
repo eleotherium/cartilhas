@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import type { Editor } from "@tiptap/react"
-import { ArrowLeft, Trash2, Save } from "lucide-react"
+import { ArrowLeft, ChevronDown, Trash2, Save } from "lucide-react"
+import { CATEGORY_META, CATEGORY_ORDER } from "@/lib/categories"
+import { cn } from "@/lib/utils"
 import { PeriodSelector } from "./PeriodSelector"
 import { defaultPeriod, type PeriodValue } from "./periodRange"
 import { RichEditor } from "./RichEditor"
@@ -20,14 +22,69 @@ interface FormState {
   dateNote: string
 }
 
-const CATEGORY_OPTIONS: { value: Category; label: string }[] = [
-  { value: "poema", label: "Poema" },
-  { value: "cronica", label: "Crônica" },
-  { value: "conto", label: "Conto" },
-  { value: "ensaio", label: "Ensaio" },
-]
-
 const EMPTY_FORM: FormState = { title: "", category: "poema", dateISO: "", dateNote: "" }
+
+// Pílula de categoria clicável (mesma cor/forma do badge que aparece no
+// card da lista e no leitor público) que abre um menu pra trocar - troca o
+// `<select>` caixudo de formulário por algo que já parece parte da
+// composição, não um controle de admin genérico.
+function CategoryPillSelect({ value, onChange }: { value: Category; onChange: (category: Category) => void }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const meta = CATEGORY_META[value]
+
+  useEffect(() => {
+    if (!open) return
+    function handleClickOutside(event: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [open])
+
+  return (
+    <div ref={rootRef} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full py-1.5 pl-3 pr-2 text-xs font-semibold uppercase tracking-[0.08em] transition-transform duration-150 active:scale-95",
+          meta.bg,
+          meta.fg,
+        )}
+      >
+        {meta.label}
+        <ChevronDown className="h-3 w-3" strokeWidth={2.5} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-20 mt-2 w-40">
+          <div className="flex flex-col gap-1 rounded-2xl border border-ink/10 bg-paper p-2 shadow-[0_24px_60px_-16px_rgb(35_31_26_/_0.4)]">
+            {CATEGORY_ORDER.map((cat) => {
+              const m = CATEGORY_META[cat]
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => {
+                    onChange(cat)
+                    setOpen(false)
+                  }}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-left text-xs font-semibold uppercase tracking-[0.06em] transition-colors duration-150",
+                    cat === value ? cn(m.bg, m.fg) : "text-ink-soft hover:bg-ink/6",
+                  )}
+                >
+                  {m.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // O `.md` cru (frontmatter + corpo) vem da API só pra alimentar o formulário
 // de edição - parser mínimo espelhando o do worker (ver worker/index.ts),
@@ -170,50 +227,37 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
 
       {error && <p className="rounded-xl bg-red-100 px-4 py-2 text-sm text-red-800">{error}</p>}
 
-      <div className="glass-card grid grid-cols-1 gap-4 rounded-[24px] p-5 sm:grid-cols-3">
-        <label className="flex flex-col gap-1 sm:col-span-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.06em] text-ink-faint">Título</span>
-          <input
-            type="text"
-            value={form.title}
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            className="rounded-xl border border-ink/10 bg-white/70 px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-calendula/40"
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-semibold uppercase tracking-[0.06em] text-ink-faint">Categoria</span>
-          <select
-            value={form.category}
-            onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as Category }))}
-            className="rounded-xl border border-ink/10 bg-white/70 px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-calendula/40"
-          >
-            {CATEGORY_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-semibold uppercase tracking-[0.06em] text-ink-faint">Data</span>
+      {/* Mesma hierarquia visual do leitor público (badge de categoria,
+          título grande em serif, data em caption) - editável, mas sem cara
+          de formulário de admin (pedido explícito: nada de caixa com
+          borda + label acima de cada campo). */}
+      <div className="flex flex-col gap-3">
+        <CategoryPillSelect value={form.category} onChange={(category) => setForm((f) => ({ ...f, category }))} />
+        <input
+          type="text"
+          value={form.title}
+          onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+          placeholder="Título do texto"
+          className="-mx-2 rounded-lg border-none bg-transparent px-2 py-1 font-serif text-4xl font-bold leading-tight text-ink transition-colors duration-150 placeholder:text-ink-faint/50 focus:bg-ink/[0.03] focus:outline-none"
+        />
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs uppercase tracking-[0.08em] text-ink-faint">
           <input
             type="date"
             value={form.dateISO}
             onChange={(e) => setForm((f) => ({ ...f, dateISO: e.target.value }))}
-            className="rounded-xl border border-ink/10 bg-white/70 px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-calendula/40"
+            className="-mx-1 rounded border-none bg-transparent px-1 text-ink-faint transition-colors duration-150 focus:bg-ink/[0.04] focus:outline-none"
           />
-        </label>
-        <label className="flex flex-col gap-1 sm:col-span-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.06em] text-ink-faint">
-            Nota da data (ex.: "composição", "publicação; data de composição não registrada")
+          <span aria-hidden className="text-ink-faint/50">
+            ·
           </span>
           <input
             type="text"
             value={form.dateNote}
             onChange={(e) => setForm((f) => ({ ...f, dateNote: e.target.value }))}
-            className="rounded-xl border border-ink/10 bg-white/70 px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-calendula/40"
+            placeholder='nota da data (ex.: "composição", "publicação; data não registrada")'
+            className="-mx-1 min-w-0 flex-1 rounded border-none bg-transparent px-1 normal-case italic tracking-normal text-ink-faint transition-colors duration-150 placeholder:text-ink-faint/60 focus:bg-ink/[0.04] focus:outline-none"
           />
-        </label>
+        </div>
       </div>
 
       {id !== "new" && <TextStatsStrip id={id} period={period} />}

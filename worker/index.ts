@@ -152,18 +152,38 @@ const STATS_RETENTION_DAYS = 400
 interface StatsData {
   visitsTotal: number
   readsTotal: number
+  /** "Visualização": o leitor abriu o texto (ReadingDrawer montou), sem
+   * nenhuma condição - distinto de "leitura" (`reads*` abaixo), que só
+   * conta depois de rolar até o fim ou ficar 5s aberto (ver
+   * ReadingDrawer.tsx). As duas juntas dão uma noção de taxa de
+   * conclusão (quantos abriram vs. quantos realmente leram). */
+  opensTotal: number
   visitsByDay: Record<string, number>
   readsByDay: Record<string, number>
+  opensByDay: Record<string, number>
   readsByText: Record<string, number>
+  opensByText: Record<string, number>
   /** id (string) -> { dia -> contagem } - granularidade por dia só por
    * texto, não por categoria/etc: é o que o seletor de período da página
    * de edição precisa pra calcular hoje/7d/30d/período personalizado de
    * UM texto só, sem ter que escanear todos os textos. */
   readsByTextByDay: Record<string, Record<string, number>>
+  opensByTextByDay: Record<string, Record<string, number>>
 }
 
 function emptyStats(): StatsData {
-  return { visitsTotal: 0, readsTotal: 0, visitsByDay: {}, readsByDay: {}, readsByText: {}, readsByTextByDay: {} }
+  return {
+    visitsTotal: 0,
+    readsTotal: 0,
+    opensTotal: 0,
+    visitsByDay: {},
+    readsByDay: {},
+    opensByDay: {},
+    readsByText: {},
+    opensByText: {},
+    readsByTextByDay: {},
+    opensByTextByDay: {},
+  }
 }
 
 // Dia em UTC (não pt-BR local) - só serve de chave de agrupamento, não
@@ -215,18 +235,37 @@ async function trackVisit(bucket: R2Bucket): Promise<void> {
   await saveStats(bucket, stats)
 }
 
-async function trackRead(bucket: R2Bucket, id: number): Promise<void> {
+// `trackRead`/`trackOpen` têm o mesmo formato (total + por-dia + por-texto +
+// por-texto-por-dia) - uma função genérica evita duplicar essa lógica pros
+// dois eventos (ver `StatsData`: `reads*` = leitura qualificada, `opens*` =
+// abertura incondicional).
+async function trackEvent(
+  bucket: R2Bucket,
+  id: number,
+  totalKey: "readsTotal" | "opensTotal",
+  byDayKey: "readsByDay" | "opensByDay",
+  byTextKey: "readsByText" | "opensByText",
+  byTextByDayKey: "readsByTextByDay" | "opensByTextByDay",
+): Promise<void> {
   const stats = await loadStats(bucket)
-  stats.readsTotal += 1
+  stats[totalKey] += 1
   const day = todayKey()
-  stats.readsByDay[day] = (stats.readsByDay[day] ?? 0) + 1
-  stats.readsByDay = pruneOldDays(stats.readsByDay)
+  stats[byDayKey][day] = (stats[byDayKey][day] ?? 0) + 1
+  stats[byDayKey] = pruneOldDays(stats[byDayKey])
   const key = String(id)
-  stats.readsByText[key] = (stats.readsByText[key] ?? 0) + 1
-  const byDay = stats.readsByTextByDay[key] ?? {}
+  stats[byTextKey][key] = (stats[byTextKey][key] ?? 0) + 1
+  const byDay = stats[byTextByDayKey][key] ?? {}
   byDay[day] = (byDay[day] ?? 0) + 1
-  stats.readsByTextByDay[key] = pruneOldDays(byDay)
+  stats[byTextByDayKey][key] = pruneOldDays(byDay)
   await saveStats(bucket, stats)
+}
+
+async function trackRead(bucket: R2Bucket, id: number): Promise<void> {
+  await trackEvent(bucket, id, "readsTotal", "readsByDay", "readsByText", "readsByTextByDay")
+}
+
+async function trackOpen(bucket: R2Bucket, id: number): Promise<void> {
+  await trackEvent(bucket, id, "opensTotal", "opensByDay", "opensByText", "opensByTextByDay")
 }
 
 function sumRange(byDay: Record<string, number>, from: string, to: string): number {
@@ -307,7 +346,26 @@ export default {
       return jsonResponse({ ok: true })
     }
 
-    if (pathname === "/api/track/view" && request.method === "POST") {
+    // "Abertura" (visualização) - incondicional, dispara assim que o
+    // ReadingDrawer monta um texto. "Leitura" - só depois de rolar até o
+    // fim ou ficar 5s aberto (ver ReadingDrawer.tsx). São eventos
+    // DIFERENTES, não um rename do outro - por isso duas rotas.
+    if (pathname === "/api/track/open" && request.method === "POST") {
+      let payload: unknown
+      try {
+        payload = await request.json()
+      } catch {
+        return jsonResponse({ error: "JSON inválido" }, { status: 400 })
+      }
+      const id = (payload as Record<string, unknown> | null)?.id
+      if (typeof id !== "number" || !Number.isInteger(id)) {
+        return jsonResponse({ error: "id inválido" }, { status: 400 })
+      }
+      await trackOpen(bucket, id)
+      return jsonResponse({ ok: true })
+    }
+
+    if (pathname === "/api/track/read" && request.method === "POST") {
       let payload: unknown
       try {
         payload = await request.json()
@@ -370,33 +428,40 @@ export default {
 
       // Stats de um texto só (StatsButton no preview admin, e a faixa de 3/4
       // cartões na página de edição - ver TextTools.tsx e PeriodSelector.tsx).
-      // `today`/`last7d`/`last30d` são sempre calculados (referência fixa);
-      // `filtered` só vem preenchido se `from`/`to` forem passados (período
-      // escolhido no seletor). `rank`/`total` consideram só textos com pelo
-      // menos 1 leitura (sem isso todo texto zerado empataria em "último
-      // lugar", um empate sem sentido de reportar).
+      // Cada janela (today/last7d/last30d/filtered) traz os dois números -
+      // `opens` (visualização, abriu) e `reads` (leitura, qualificada) -
+      // não um só, pra UI poder mostrar a dupla lado a lado em cada cartão.
+      // `rank`/`total` consideram só textos com pelo menos 1 leitura (sem
+      // isso todo texto zerado empataria em "último lugar", um empate sem
+      // sentido de reportar).
       const statOneMatch = pathname.match(/^\/api\/admin\/stats\/(\d+)$/)
       if (statOneMatch && request.method === "GET") {
         const id = Number(statOneMatch[1])
         const key = String(id)
         const stats = await loadStats(bucket)
-        const byDay = stats.readsByTextByDay[key] ?? {}
+        const readsByDay = stats.readsByTextByDay[key] ?? {}
+        const opensByDay = stats.opensByTextByDay[key] ?? {}
         const today = todayKey()
         const ranked = Object.entries(stats.readsByText)
           .map(([k, count]) => ({ id: Number(k), count }))
           .sort((a, b) => b.count - a.count)
         const position = ranked.findIndex((e) => e.id === id)
 
+        const window = (from: string, to: string) => ({
+          opens: sumRange(opensByDay, from, to),
+          reads: sumRange(readsByDay, from, to),
+        })
+
         const url = new URL(request.url)
         const from = url.searchParams.get("from")
         const to = url.searchParams.get("to")
-        const filtered = from && to ? { from, to, count: sumRange(byDay, from, to) } : null
+        const filtered = from && to ? { from, to, ...window(from, to) } : null
 
         return jsonResponse({
-          today: sumRange(byDay, today, today),
-          last7d: sumRange(byDay, addDaysStr(today, -6), today),
-          last30d: sumRange(byDay, addDaysStr(today, -29), today),
-          allTime: stats.readsByText[key] ?? 0,
+          today: window(today, today),
+          last7d: window(addDaysStr(today, -6), today),
+          last30d: window(addDaysStr(today, -29), today),
+          allTime: { opens: stats.opensByText[key] ?? 0, reads: stats.readsByText[key] ?? 0 },
           rank: position >= 0 ? position + 1 : null,
           total: ranked.length,
           filtered,
@@ -441,13 +506,11 @@ export default {
         await rebuildIndex(bucket)
         const stats = await loadStats(bucket)
         let statsChanged = false
-        if (delMatch[1] in stats.readsByText) {
-          delete stats.readsByText[delMatch[1]]
-          statsChanged = true
-        }
-        if (delMatch[1] in stats.readsByTextByDay) {
-          delete stats.readsByTextByDay[delMatch[1]]
-          statsChanged = true
+        for (const bucketKey of ["readsByText", "opensByText", "readsByTextByDay", "opensByTextByDay"] as const) {
+          if (delMatch[1] in stats[bucketKey]) {
+            delete stats[bucketKey][delMatch[1]]
+            statsChanged = true
+          }
         }
         if (statsChanged) await saveStats(bucket, stats)
         return jsonResponse({ ok: true })

@@ -43,11 +43,31 @@ export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext,
   // IDs já contados nesta "sessão" de leitor aberto - reseta quando o
   // leitor fecha de vez, pra uma reabertura mais tarde poder contar de
   // novo, mas não reconta de novo só por navegar prev/next de um lado pro
-  // outro enquanto o leitor permanece aberto.
+  // outro enquanto o leitor permanece aberto. Dois sets separados: uma
+  // "abertura" (visualização) e uma "leitura" (qualificada) são eventos
+  // diferentes, cada um com sua própria dedupe.
   const trackedIdsRef = useRef<Set<number>>(new Set())
+  const openedIdsRef = useRef<Set<number>>(new Set())
 
   useEffect(() => {
-    if (cartilha === null) trackedIdsRef.current = new Set()
+    if (cartilha === null) {
+      trackedIdsRef.current = new Set()
+      openedIdsRef.current = new Set()
+    }
+  }, [cartilha])
+
+  // "Visualização": dispara assim que o texto abre, sem condição nenhuma -
+  // ao contrário da "leitura" abaixo, não espera rolagem nem tempo
+  // mínimo. É o número que, comparado com o de leituras, mostra quantos
+  // abrem mas não terminam de ler.
+  useEffect(() => {
+    if (!cartilha || openedIdsRef.current.has(cartilha.id)) return
+    openedIdsRef.current.add(cartilha.id)
+    fetch("/api/track/open", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: cartilha.id }),
+    }).catch(() => {})
   }, [cartilha])
 
   // Leitura conta por rolagem até o fim do conteúdo - ou, se o texto já
@@ -69,7 +89,7 @@ export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext,
       if (settled || !cartilha) return
       settled = true
       trackedIdsRef.current.add(cartilha.id)
-      fetch("/api/track/view", {
+      fetch("/api/track/read", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: cartilha.id }),
