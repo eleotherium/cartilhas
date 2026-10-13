@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react"
-import { useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { AppHeader } from "@/components/AppHeader"
 import { Backdrop } from "@/components/Backdrop"
 import { CartilhaCard } from "@/components/CartilhaCard"
@@ -8,17 +8,33 @@ import { EmptyState } from "@/components/EmptyState"
 import { ReadingDrawer } from "@/components/ReadingDrawer"
 import { SearchBar } from "@/components/SearchBar"
 import { SortToggle } from "@/components/SortToggle"
-import cartilhasData from "@/data/cartilhas.json"
 import { CATEGORY_ORDER } from "@/lib/categories"
 import { EASE_OUT } from "@/lib/motion"
 import { normalize } from "@/lib/utils"
 import type { Category, Cartilha, SortDirection, SortField } from "@/types/cartilha"
 
-const cartilhas = cartilhasData as Cartilha[]
 const SIDEBAR_WIDTH = 272
 const SIDEBAR_GAP = 32
 
 function App() {
+  // Antes era um `import` estático de JSON gerado em build-time; agora os
+  // textos vivem no R2, editáveis pelo /admin, então precisam ser buscados em
+  // runtime. `null` = ainda carregando (distinto de `[]`, que seria "carregou
+  // e não tem nenhum texto" - sem essa distinção o loading piscaria a tela de
+  // "nenhum texto encontrado" por engano).
+  const [cartilhas, setCartilhas] = useState<Cartilha[] | null>(null)
+  const [loadError, setLoadError] = useState(false)
+
+  useEffect(() => {
+    fetch("/api/cartilhas")
+      .then((res) => {
+        if (!res.ok) throw new Error(`status ${res.status}`)
+        return res.json() as Promise<Cartilha[]>
+      })
+      .then(setCartilhas)
+      .catch(() => setLoadError(true))
+  }, [])
+
   const [query, setQuery] = useState("")
   // Colapsada por padrão - quem quer os gêneros abre pelo ícone de sanduíche.
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -89,12 +105,13 @@ function App() {
   const columnCount = windowWidth >= 1536 && !sidebarOpen ? 4 : windowWidth >= 1280 ? 3 : windowWidth >= 640 ? 2 : 1
 
   const searched = useMemo(() => {
+    const all = cartilhas ?? []
     const needle = normalize(query.trim())
-    if (!needle) return cartilhas
-    return cartilhas.filter(
+    if (!needle) return all
+    return all.filter(
       (c) => normalize(c.title).includes(needle) || normalize(c.body).includes(needle),
     )
-  }, [query])
+  }, [cartilhas, query])
 
   const counts = useMemo(() => {
     const base = Object.fromEntries(CATEGORY_ORDER.map((c) => [c, 0])) as Record<Category, number>
@@ -199,7 +216,16 @@ function App() {
             </div>
 
             <div ref={contentTopRef}>
-              {visible.length === 0 ? (
+              {cartilhas === null ? (
+                <div className="glass mx-auto flex max-w-md flex-col items-center gap-3 rounded-[28px] px-10 py-16 text-center">
+                  <p className="font-serif text-xl font-bold text-ink">
+                    {loadError ? "Não deu pra carregar os textos" : "Carregando os textos…"}
+                  </p>
+                  <p className="text-sm text-ink-faint">
+                    {loadError ? "Recarregue a página pra tentar de novo." : "Só um instante."}
+                  </p>
+                </div>
+              ) : visible.length === 0 ? (
                 <EmptyState query={query} onClear={() => setQuery("")} />
               ) : (
                 <div className="flex gap-6">

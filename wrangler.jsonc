@@ -2,10 +2,16 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "cartilhas",
   "compatibility_date": "2026-10-01",
+  "main": "./worker/index.ts",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
   },
+  "r2_buckets": [
+    { "binding": "CARTILHAS_BUCKET", "bucket_name": "cartilhas-content" }
+  ],
   "routes": [
     { "pattern": "cartilhas.eleotherium.com", "custom_domain": true }
   ],

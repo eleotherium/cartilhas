@@ -336,3 +336,72 @@ button:not(:disabled),
   -webkit-line-clamp: 3;
   overflow: hidden;
 }
+
+/* ---------- Editor rico (admin) ---------- */
+/* O Tailwind reseta toda tipografia padrão (sem bullet em <ul>, sem peso em
+   <h2>, etc.) - o conteúdo editável do Tiptap (`.ProseMirror`) precisa do
+   próprio conjunto de regras, já que não é renderizado pelos componentes do
+   site público (que usam classes Tailwind explícitas por elemento). */
+.ProseMirror {
+  outline: none;
+}
+.ProseMirror > * + * {
+  margin-top: 0.9em;
+}
+.ProseMirror h2 {
+  font-family: var(--font-serif);
+  font-size: 1.5em;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-calendula-deep);
+}
+.ProseMirror h3 {
+  font-family: var(--font-serif);
+  font-size: 1.2em;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 1.4em;
+}
+.ProseMirror ul {
+  list-style: disc;
+}
+.ProseMirror ol {
+  list-style: decimal;
+}
+.ProseMirror li + li {
+  margin-top: 0.35em;
+}
+.ProseMirror blockquote {
+  border-left: 3px solid var(--color-calendula);
+  padding-left: 1em;
+  color: var(--color-ink-soft);
+  font-style: italic;
+}
+.ProseMirror a {
+  color: var(--color-calendula-deep);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Bloco de destaque: mesma identidade mista calêndula+violeta do resto do
+   site (degradê, não fundo chapado - ver .gradient-border-mixed), não um
+   cinza genérico de callout de biblioteca de UI. Acento vem da borda em
+   degradê completa (truque padding-box/border-box), não de uma stripe
+   lateral de cor (anti-padrão - lido como "card decorado", não citação
+   nem destaque de verdade). */
+.ProseMirror .destaque {
+  margin-block: 0.4em;
+  padding: 1em 1.2em;
+  border-radius: 16px;
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(
+        135deg,
+        color-mix(in oklch, var(--color-calendula) 10%, var(--color-paper)),
+        color-mix(in oklch, var(--color-violeta) 10%, var(--color-paper))
+      )
+      padding-box,
+    linear-gradient(120deg, var(--color-calendula) 0%, var(--color-violeta) 100%) border-box;
+}
