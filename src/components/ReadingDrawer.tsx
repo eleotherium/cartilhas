@@ -303,9 +303,9 @@ export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext,
                           ease: EASE_OUT,
                           delay: 0.1 + Math.min(paragraphs.length, STAGGER_CAP) * STAGGER_STEP,
                         }}
-                        className="mt-12 flex justify-end"
+                        className="mt-12 flex justify-start"
                       >
-                        <Signature height={92} className="opacity-[0.85]" />
+                        <Signature height={120} className="opacity-[0.85]" />
                       </motion.div>
                     </motion.div>
                   </AnimatePresence>
