@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import type { Editor } from "@tiptap/react"
 import { ArrowLeft, Trash2, Save } from "lucide-react"
 import { RichEditor } from "./RichEditor"
+import { ShareButton, StatsButton } from "./TextTools"
 import type { Category } from "@/types/cartilha"
 
 interface CartilhaEditorProps {
@@ -133,15 +134,20 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
         </button>
         <div className="flex items-center gap-2">
           {id !== "new" && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={saving}
-              className="glass-card flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-ink-soft hover:text-red-700 disabled:opacity-50"
-            >
-              <Trash2 className="h-4 w-4" strokeWidth={2} />
-              Excluir
-            </button>
+            <>
+              <StatsButton id={id} />
+              <ShareButton id={id} />
+              <span className="mx-1 h-5 w-px bg-ink/10" />
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={saving}
+                className="glass-card flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-ink-soft hover:text-red-700 disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" strokeWidth={2} />
+                Excluir
+              </button>
+            </>
           )}
           <button
             type="button"

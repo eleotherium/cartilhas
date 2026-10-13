@@ -337,6 +337,25 @@ export default {
         })
       }
 
+      // Stats de um texto só (botão de stats no preview admin e no editor -
+      // ver TextTools.tsx). `rank`/`total` só consideram textos com pelo
+      // menos 1 leitura (sem isso, todo texto sem leitura nenhuma empataria
+      // em "último lugar", um empate sem sentido de reportar).
+      const statOneMatch = pathname.match(/^\/api\/admin\/stats\/(\d+)$/)
+      if (statOneMatch && request.method === "GET") {
+        const id = Number(statOneMatch[1])
+        const stats = await loadStats(bucket)
+        const ranked = Object.entries(stats.readsByText)
+          .map(([key, count]) => ({ id: Number(key), count }))
+          .sort((a, b) => b.count - a.count)
+        const position = ranked.findIndex((e) => e.id === id)
+        return jsonResponse({
+          count: stats.readsByText[String(id)] ?? 0,
+          rank: position >= 0 ? position + 1 : null,
+          total: ranked.length,
+        })
+      }
+
       const rawMatch = pathname.match(/^\/api\/admin\/cartilhas\/(\d+)\/raw$/)
       if (rawMatch && request.method === "GET") {
         const obj = await bucket.get(`${rawMatch[1]}.md`)

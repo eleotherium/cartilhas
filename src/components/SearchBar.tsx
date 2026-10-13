@@ -9,14 +9,14 @@ interface SearchBarProps {
 
 export function SearchBar({ value, onChange }: SearchBarProps) {
   return (
-    <div className="glass flex h-16 shrink-0 items-center gap-3 rounded-full px-6 transition-shadow duration-200 focus-within:shadow-[0_0_0_3px_rgb(212_65_7_/_0.3)] sm:h-14 sm:flex-1">
-      <Search className="h-5 w-5 shrink-0 text-ink-faint" strokeWidth={1.75} />
+    <div className="glass flex h-[72px] shrink-0 items-center gap-3 rounded-full px-7 transition-shadow duration-200 focus-within:shadow-[0_0_0_3px_rgb(212_65_7_/_0.3)] sm:flex-1">
+      <Search className="h-6 w-6 shrink-0 text-ink-faint" strokeWidth={1.75} />
       <input
         type="text"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder="Buscar por título ou palavra do texto"
-        className="h-full w-full bg-transparent text-[15px] text-ink placeholder:text-ink-faint focus:outline-none"
+        className="h-full w-full bg-transparent text-base text-ink placeholder:text-ink-faint focus:outline-none"
       />
       <AnimatePresence>
         {value.length > 0 && (

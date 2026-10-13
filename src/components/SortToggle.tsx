@@ -19,7 +19,7 @@ const OPTIONS: { field: SortField; label: string; icon: typeof ArrowDownAZ }[] =
 export function SortToggle({ field, direction, onFieldChange, onToggleDirection }: SortToggleProps) {
   return (
     <div className="flex items-center gap-2">
-      <div className="glass relative flex h-14 items-center rounded-full p-1.5">
+      <div className="glass relative flex h-[72px] items-center rounded-full p-1.5">
         {OPTIONS.map((option) => {
           const Icon = option.icon
           const active = field === option.field
@@ -56,7 +56,7 @@ export function SortToggle({ field, direction, onFieldChange, onToggleDirection 
         onClick={onToggleDirection}
         aria-label={direction === "asc" ? "Ordem crescente, trocar para decrescente" : "Ordem decrescente, trocar para crescente"}
         whileTap={{ scale: 0.92 }}
-        className="glass relative grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full text-ink-soft hover:text-calendula-deep"
+        className="glass relative grid h-[72px] w-[72px] shrink-0 place-items-center overflow-hidden rounded-full text-ink-soft hover:text-calendula-deep"
       >
         <AnimatePresence initial={false}>
           {direction === "asc" ? (

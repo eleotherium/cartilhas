@@ -51,16 +51,46 @@ function App() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
   const [activeId, setActiveId] = useState<number | null>(null)
 
-  // Ping de leitura toda vez que um texto abre, inclusive ao navegar
-  // prev/next dentro do leitor (cada abertura conta).
+  // Ping de leitura: ver ReadingDrawer.tsx - rolar até o fim conta como
+  // leitura (ou, se o texto já cabe na tela sem rolar, ficar 5s aberto já
+  // conta). Não é mais "abriu = leu" feito aqui.
+
+  // Captura o `?t=<id>` da URL original de forma síncrona (inicializador
+  // "preguiçoso" do useState, roda durante o render, antes de qualquer
+  // efeito) - se isso fosse lido dentro de um efeito comum, o efeito de
+  // `replaceState` logo abaixo (que roda toda vez que `activeId` é null,
+  // inclusive no mount) já teria apagado o `t` da URL antes da leitura.
+  const [initialSharedId] = useState<number | null>(() => {
+    const id = Number(new URLSearchParams(window.location.search).get("t"))
+    return Number.isInteger(id) ? id : null
+  })
+
+  // Reflete o texto aberto na URL (`?t=<id>`) pra permitir compartilhar um
+  // link direto pra um texto específico (ver botão de compartilhar no
+  // admin) - `replaceState`, não `pushState`, pra não empilhar o
+  // histórico do navegador a cada abertura/fechamento/navegação dentro
+  // do leitor.
   useEffect(() => {
-    if (activeId === null) return
-    fetch("/api/track/view", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: activeId }),
-    }).catch(() => {})
+    const url = new URL(window.location.href)
+    if (activeId === null) {
+      url.searchParams.delete("t")
+    } else {
+      url.searchParams.set("t", String(activeId))
+    }
+    window.history.replaceState(null, "", url)
   }, [activeId])
+
+  // Abre o texto indicado em `?t=<id>` assim que os dados carregam - só
+  // uma vez (o ref evita reabrir sozinho se o visitante fechar o leitor
+  // depois, já que `cartilhas` não muda mais após o carregamento inicial).
+  const openedFromUrlRef = useRef(false)
+  useEffect(() => {
+    if (openedFromUrlRef.current || !cartilhas || initialSharedId === null) return
+    openedFromUrlRef.current = true
+    if (cartilhas.some((c) => c.id === initialSharedId)) {
+      setActiveId(initialSharedId)
+    }
+  }, [cartilhas, initialSharedId])
 
   // A sidebar e o botão são `position: fixed` de verdade (ver
   // CategorySidebar.tsx) - precisam de um `top` em px medido de verdade,

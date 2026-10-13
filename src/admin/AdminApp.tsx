@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Pencil, Plus } from "lucide-react"
+import { Eye, Pencil, Plus } from "lucide-react"
 import { Backdrop } from "@/components/Backdrop"
+import { ReadingDrawer } from "@/components/ReadingDrawer"
 import { SearchBar } from "@/components/SearchBar"
 import type { CategoryFilter } from "@/components/CategorySidebar"
 import { CATEGORY_META, CATEGORY_ORDER } from "@/lib/categories"
@@ -8,6 +9,7 @@ import { cn, normalize } from "@/lib/utils"
 import type { Cartilha } from "@/types/cartilha"
 import { CartilhaEditor } from "./CartilhaEditor"
 import { StatsPanel } from "./StatsPanel"
+import { ShareButton, StatsButton } from "./TextTools"
 
 type View = { name: "list" } | { name: "edit"; id: number | "new" }
 
@@ -53,6 +55,11 @@ export function AdminApp() {
   const [error, setError] = useState(false)
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState<CategoryFilter>("todos")
+  // Pré-visualização protegida: reaproveita o mesmo ReadingDrawer do site
+  // público, só que montado aqui dentro do /admin (atrás do Zero Trust) -
+  // é por isso que os ícones de stats (TextTools.tsx) só aparecem nesta
+  // versão, nunca na do App.tsx.
+  const [previewId, setPreviewId] = useState<number | null>(null)
 
   const load = useCallback(() => {
     setItems(null)
@@ -79,6 +86,16 @@ export function AdminApp() {
       return matchesCategory && matchesQuery
     })
   }, [items, query, category])
+
+  const previewIndex = previewId === null ? -1 : filtered.findIndex((c) => c.id === previewId)
+  const previewCartilha = previewIndex >= 0 ? filtered[previewIndex] : null
+
+  function handlePreviewNavigate(direction: 1 | -1) {
+    const nextIndex = previewIndex + direction
+    if (nextIndex >= 0 && nextIndex < filtered.length) {
+      setPreviewId(filtered[nextIndex].id)
+    }
+  }
 
   return (
     <div className="relative min-h-dvh">
@@ -127,11 +144,14 @@ export function AdminApp() {
                 {filtered.map((item) => {
                   const meta = CATEGORY_META[item.category]
                   return (
-                    <li key={item.id}>
+                    <li
+                      key={item.id}
+                      className="glass-card flex items-center gap-1 rounded-[20px] pr-3 transition-shadow duration-150 hover:shadow-[0_12px_30px_-16px_rgb(212_65_7_/_0.4)]"
+                    >
                       <button
                         type="button"
                         onClick={() => setView({ name: "edit", id: item.id })}
-                        className="glass-card flex w-full items-center justify-between gap-4 rounded-[20px] px-5 py-4 text-left transition-shadow duration-150 hover:shadow-[0_12px_30px_-16px_rgb(212_65_7_/_0.4)]"
+                        className="flex min-w-0 flex-1 items-center justify-between gap-4 px-5 py-4 text-left"
                       >
                         <div className="min-w-0">
                           <div className="mb-1 flex items-center gap-2">
@@ -144,6 +164,14 @@ export function AdminApp() {
                         </div>
                         <Pencil className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={2} />
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewId(item.id)}
+                        aria-label={`Pré-visualizar "${item.title}"`}
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-faint transition-colors duration-150 hover:text-calendula-deep"
+                      >
+                        <Eye className="h-4 w-4" strokeWidth={2} />
+                      </button>
                     </li>
                   )
                 })}
@@ -152,6 +180,22 @@ export function AdminApp() {
           </>
         )}
       </div>
+
+      <ReadingDrawer
+        cartilha={previewCartilha}
+        onClose={() => setPreviewId(null)}
+        onNavigate={handlePreviewNavigate}
+        hasPrev={previewIndex > 0}
+        hasNext={previewIndex >= 0 && previewIndex < filtered.length - 1}
+        extraHeaderActions={
+          previewCartilha && (
+            <>
+              <StatsButton id={previewCartilha.id} />
+              <ShareButton id={previewCartilha.id} />
+            </>
+          )
+        }
+      />
     </div>
   )
 }

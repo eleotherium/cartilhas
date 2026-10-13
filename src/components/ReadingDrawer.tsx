@@ -1,10 +1,14 @@
 import * as Dialog from "@radix-ui/react-dialog"
 import { ChevronLeft, ChevronRight, X } from "lucide-react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { CATEGORY_META } from "@/lib/categories"
 import { cn } from "@/lib/utils"
 import { DURATION, EASE_OUT, STAGGER_CAP, STAGGER_STEP } from "@/lib/motion"
 import type { Cartilha } from "@/types/cartilha"
+
+const READ_MIN_SECONDS = 5
+const READ_SCROLL_TOLERANCE_PX = 24
 
 interface ReadingDrawerProps {
   cartilha: Cartilha | null
@@ -12,10 +16,85 @@ interface ReadingDrawerProps {
   onNavigate: (direction: 1 | -1) => void
   hasPrev: boolean
   hasNext: boolean
+  /** Ícones extras no canto superior direito (stats + compartilhar) - só o
+   * preview do admin passa isso; o leitor público (App.tsx) não, por
+   * decisão explícita (stats por texto é um dado só do admin, não social
+   * proof público). */
+  extraHeaderActions?: ReactNode
 }
 
-export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext }: ReadingDrawerProps) {
+export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext, extraHeaderActions }: ReadingDrawerProps) {
   const reduceMotion = useReducedMotion()
+  // Par estado+ref pro container de rolagem: o estado existe só pra
+  // disparar o efeito de leitura logo abaixo de novo assim que o nó
+  // aparece (o nó só existe depois que o Portal do Radix + a entrada do
+  // Framer Motion terminam de montar, o que não é garantido acontecer no
+  // mesmo ciclo de efeitos em que `cartilha` passa de null pro texto - um
+  // `useRef` sozinho podia ficar `null` bem na janela em que o efeito
+  // roda, bug real visto via log). Mutações de verdade (scrollTop,
+  // addEventListener) usam o ref, não o estado - mexer direto num valor
+  // de `useState` é o padrão que o lint de imutabilidade do React reclama.
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [containerReady, setContainerReady] = useState(false)
+  function setContainerEl(node: HTMLDivElement | null) {
+    containerRef.current = node
+    setContainerReady(node !== null)
+  }
+  // IDs já contados nesta "sessão" de leitor aberto - reseta quando o
+  // leitor fecha de vez, pra uma reabertura mais tarde poder contar de
+  // novo, mas não reconta de novo só por navegar prev/next de um lado pro
+  // outro enquanto o leitor permanece aberto.
+  const trackedIdsRef = useRef<Set<number>>(new Set())
+
+  useEffect(() => {
+    if (cartilha === null) trackedIdsRef.current = new Set()
+  }, [cartilha])
+
+  // Leitura conta por rolagem até o fim do conteúdo - ou, se o texto já
+  // cabe inteiro na tela sem precisar rolar, só por ficar aberto pelo menos
+  // READ_MIN_SECONDS (abrir e fechar na hora não conta como leu). Reseta o
+  // scroll pro topo a cada texto novo: o container não é remontado ao
+  // trocar de texto (só o conteúdo interno troca via `key`), então sem
+  // isso um texto curto aberto logo depois de um longo herdaria a posição
+  // de rolagem do anterior - problema de UX por si só, não só de tracking.
+  useEffect(() => {
+    if (!cartilha || !containerReady || !containerRef.current) return
+    const container = containerRef.current
+    container.scrollTop = 0
+
+    if (trackedIdsRef.current.has(cartilha.id)) return
+
+    let settled = false
+    function markRead() {
+      if (settled || !cartilha) return
+      settled = true
+      trackedIdsRef.current.add(cartilha.id)
+      fetch("/api/track/view", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: cartilha.id }),
+      }).catch(() => {})
+    }
+
+    const fitsWithoutScroll = container.scrollHeight <= container.clientHeight + 1
+    if (fitsWithoutScroll) {
+      const timer = setTimeout(markRead, READ_MIN_SECONDS * 1000)
+      return () => {
+        settled = true
+        clearTimeout(timer)
+      }
+    }
+
+    function handleScroll() {
+      const { scrollTop, scrollHeight, clientHeight } = container
+      if (scrollTop + clientHeight >= scrollHeight - READ_SCROLL_TOLERANCE_PX) markRead()
+    }
+    container.addEventListener("scroll", handleScroll, { passive: true })
+    return () => {
+      settled = true
+      container.removeEventListener("scroll", handleScroll)
+    }
+  }, [cartilha, containerReady])
 
   // Variants (não um objeto `transition` plano) para que entrada e saída tenham
   // durações diferentes: entrada deliberada (0.42s), saída rápida (0.26s) -
@@ -107,6 +186,12 @@ export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext 
                     </span>
                   )}
                   <div className="flex items-center gap-2">
+                    {extraHeaderActions && (
+                      <>
+                        {extraHeaderActions}
+                        <span className="mx-1 h-5 w-px bg-ink/10" />
+                      </>
+                    )}
                     <button
                       type="button"
                       onClick={() => onNavigate(-1)}
@@ -137,7 +222,7 @@ export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext 
                   </div>
                 </div>
 
-                <div className="quiet-scroll flex-1 overflow-y-auto pr-1">
+                <div ref={setContainerEl} className="quiet-scroll flex-1 overflow-y-auto pr-1">
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={cartilha.id}
