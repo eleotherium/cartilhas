@@ -512,39 +512,37 @@ function buildPdfHtml(cartilha: CartilhaFull, signatureDataUri: string): string 
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
-  /* Margem de verdade do Chromium - diferente de padding num bloco (só
-     aplica uma vez, no topo/fundo do fluxo todo), @page se repete em
-     TODA página impressa, então é a única forma de ter uma "área segura"
-     consistente a partir da 2ª página. O preço é que fundo não pinta
-     dentro dela (ver .page-bg/.glow abaixo). */
-  @page { margin: 28mm 24mm; }
+  /* margin:0 aqui de propósito - CSS @page margin é uma "margin box" de
+     verdade (spec de Paged Media): nada pintado pelo documento (nem fundo,
+     nem position:fixed, nada) aparece dentro dela, em hipótese nenhuma.
+     A área segura que se repete em toda página vem do margin nativo do
+     Puppeteer (ver pdfOptions em renderCartilhaPdf) - mecanismo diferente,
+     que só encolhe a área de conteúdo sem criar essa exclusão de pintura,
+     então o fundo definido abaixo (html/body) ainda sangra até a borda. */
+  @page { margin: 0; }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
+  html {
+    background: #faf7f1;
+    min-height: 100%;
+  }
   body {
     position: relative;
+    min-height: 100vh;
     color: #231f1a;
     font-family: "Outfit", Arial, sans-serif;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  /* position: fixed é a única forma de sangrar fundo por baixo da
-     margem do @page em TODA página - o Chromium repete elementos fixed
-     a cada página impressa (mesmo truque de cabeçalho/rodapé repetido),
-     então isso cobre a página inteira, inclusive a margem, em todas elas. */
-  .page-bg {
-    position: fixed;
-    inset: 0;
-    background: #faf7f1;
-    z-index: -2;
-  }
   .glow {
-    position: fixed;
+    position: absolute;
     border-radius: 50%;
     filter: blur(70px);
-    z-index: -1;
+    z-index: 0;
   }
   .glow-a { top: -80px; right: -120px; width: 380px; height: 380px; background: ${meta.glow}; }
   .glow-b { bottom: -100px; left: -90px; width: 320px; height: 320px; background: ${meta.glowComplement}; }
+  .content { position: relative; z-index: 1; }
   .badge {
     display: inline-flex;
     align-items: center;
@@ -596,14 +594,15 @@ function buildPdfHtml(cartilha: CartilhaFull, signatureDataUri: string): string 
 </style>
 </head>
 <body>
-  <span class="page-bg"></span>
   <span class="glow glow-a"></span>
   <span class="glow glow-b"></span>
-  <span class="badge"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${meta.icon}</svg>${escapeHtml(meta.label)}</span>
-  <h1>${escapeHtml(cartilha.title)}</h1>
-  <p class="date">${escapeHtml(cartilha.dateLabel)}</p>
-  ${paragraphs}
-  <div class="signature"></div>
+  <div class="content">
+    <span class="badge"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${meta.icon}</svg>${escapeHtml(meta.label)}</span>
+    <h1>${escapeHtml(cartilha.title)}</h1>
+    <p class="date">${escapeHtml(cartilha.dateLabel)}</p>
+    ${paragraphs}
+    <div class="signature"></div>
+  </div>
 </body>
 </html>`
 }
@@ -639,10 +638,12 @@ async function renderCartilhaPdf(env: Env, cartilha: CartilhaFull): Promise<Resp
     // PDF às vezes sai com a fonte de fallback por pegar a página antes
     // da fonte web carregar.
     gotoOptions: { waitUntil: "networkidle0" },
-    // Sem `margin` aqui de propósito - deixa o `@page` do HTML (que se
-    // repete em toda página, ao contrário de padding num bloco) definir
-    // a área segura.
-    pdfOptions: { printBackground: true, format: "a4" },
+    // `margin` do Puppeteer, não `@page` do CSS: os dois criam uma área
+    // segura que se repete em toda página, mas só o `margin` daqui deixa o
+    // fundo (printBackground) sangrar até a borda física - `@page` margin
+    // é uma "margin box" de verdade da spec de Paged Media, onde nada que
+    // o documento pinta (nem position:fixed) aparece, ponto final.
+    pdfOptions: { printBackground: true, format: "a4", margin: { top: "28mm", bottom: "28mm", left: "24mm", right: "24mm" } },
   })
   const headers = new Headers(pdf.headers)
   headers.set("content-disposition", `attachment; filename="${cartilha.id}-${slugify(cartilha.title)}.pdf"`)
