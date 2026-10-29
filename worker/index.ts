@@ -404,55 +404,120 @@ async function notifySubscribers(env: Env, cartilha: CartilhaFull): Promise<void
   )
 }
 
+// Mesmos tokens de cor/gradiente de src/index.css e mesmos ícones (lucide)
+// de src/lib/categories.ts - duplicado aqui (não importado) porque o
+// worker roda num bundle à parte do app React, sem Tailwind nem JSX; cada
+// SVG é o markup exato de lucide-static, só com os `<path>`/`<rect>`
+// internos (a tag <svg> é montada em `badgeHtml` com os atributos certos).
+const CATEGORY_PDF_META: Record<Category, { label: string; badgeBg: string; badgeFg: string; icon: string; glow: string; glowComplement: string }> = {
+  poema: {
+    label: "Poema",
+    badgeBg: "linear-gradient(135deg, #ff8a3d 0%, #d44107 55%, #8f2a05 100%)",
+    badgeFg: "#faf7f1",
+    glow: "rgb(212 65 7 / 0.4)",
+    glowComplement: "rgb(91 42 134 / 0.3)",
+    icon: '<path d="M14.086 18.412A2 2 0 0112.67 19H5v-7.672a2 2 0 01.586-1.414L11.75 3.75a6 6 0 118.49 8.49z"/><path d="M16 8 2 22"/><path d="M17.488 15H9"/>',
+  },
+  cronica: {
+    label: "Crônica",
+    badgeBg: "linear-gradient(135deg, #8b4fc9 0%, #5b2a86 55%, #211a28 100%)",
+    badgeFg: "#faf7f1",
+    glow: "rgb(91 42 134 / 0.4)",
+    glowComplement: "rgb(212 65 7 / 0.28)",
+    icon: '<path d="M15 18h-5"/><path d="M18 14h-8"/><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0v-9a2 2 0 0 1 2-2h2"/><rect width="8" height="4" x="10" y="6" rx="1"/>',
+  },
+  conto: {
+    label: "Conto",
+    badgeBg: "linear-gradient(150deg, #211a28 0%, #4a1d6e 70%, #5b2a86 100%)",
+    badgeFg: "#faf7f1",
+    glow: "rgb(33 26 40 / 0.35)",
+    glowComplement: "rgb(91 42 134 / 0.3)",
+    icon: '<path d="M12 5v16"/><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"/>',
+  },
+  ensaio: {
+    label: "Ensaio",
+    badgeBg: "#faf7f1",
+    badgeFg: "#231f1a",
+    glow: "rgb(212 65 7 / 0.3)",
+    glowComplement: "rgb(91 42 134 / 0.24)",
+    icon: '<path d="m18 13-.654-4.736a4 4 0 00-2.756-3.266l-9.163-2.9a2 2 0 00-2.017.493l-.82.819a2 2 0 00-.492 2.017l2.9 9.163a4 4 0 003.266 2.756L13 18"/><path d="M18.648 12.352a1.205 1.205 0 011.704 0l1.296 1.296a1.205 1.205 0 010 1.704l-6.296 6.296a1.205 1.205 0 01-1.704 0l-1.296-1.296a1.205 1.205 0 010-1.704z"/><path d="m3 3 6.586 6.586"/><circle cx="11" cy="11" r="2"/>',
+  },
+}
+
 // HTML autônomo (não o SPA) pro Browser Rendering gerar o PDF - mesma
-// identidade visual do leitor (ReadingDrawer.tsx: fundo paper, serif no
-// corpo, assinatura em máscara CSS no final), só que como documento de
-// impressão de verdade. `signatureDataUri` vem já em base64 (ver rota do
-// PDF, que busca `assinatura.png` dos assets estáticos).
+// identidade visual do leitor (ReadingDrawer.tsx: fundo paper com as duas
+// luzes coloridas da categoria, selo com ícone, serif de verdade no corpo,
+// assinatura em máscara CSS no final), só que como documento de impressão.
+// `signatureDataUri` vem já em base64 (ver rota do PDF, que busca
+// `assinatura.png` dos assets estáticos).
 function buildPdfHtml(cartilha: CartilhaFull, signatureDataUri: string): string {
+  const meta = CATEGORY_PDF_META[cartilha.category]
   const paragraphs = cartilha.body
     .split(/\n{2,}/)
     .map((p) => `<p>${escapeHtml(p)}</p>`)
     .join("\n")
+  const ensaioBorder =
+    cartilha.category === "ensaio"
+      ? `border: 1.5px solid transparent; background: linear-gradient(#faf7f1, #faf7f1) padding-box, linear-gradient(120deg, #d44107 0%, #5b2a86 55%, #211a28 100%) border-box;`
+      : `background: ${meta.badgeBg};`
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
 <title>${escapeHtml(cartilha.title)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
-  @page { margin: 28mm 24mm; }
+  @page { margin: 0; }
   * { box-sizing: border-box; }
-  html, body {
+  html {
     background: #faf7f1;
-    color: #231f1a;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    min-height: 100%;
   }
   body {
-    font-family: Georgia, "Times New Roman", serif;
+    position: relative;
+    min-height: 100vh;
     margin: 0;
-    padding: 0;
+    padding: 32mm 24mm;
+    color: #231f1a;
+    font-family: "Outfit", Arial, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    overflow: hidden;
   }
+  .glow {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(70px);
+    z-index: 0;
+  }
+  .glow-a { top: -80px; right: -120px; width: 380px; height: 380px; background: ${meta.glow}; }
+  .glow-b { bottom: -100px; left: -90px; width: 320px; height: 320px; background: ${meta.glowComplement}; }
+  .content { position: relative; z-index: 1; }
   .badge {
-    display: inline-block;
-    padding: 5px 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
     border-radius: 999px;
-    background: #d44107;
-    color: #faf7f1;
-    font-family: Arial, sans-serif;
+    ${ensaioBorder}
+    color: ${meta.badgeFg};
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     margin-bottom: 20px;
   }
+  .badge svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   h1 {
-    font-size: 32px;
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-weight: 700;
+    font-size: 36px;
     line-height: 1.15;
     margin: 0 0 6px;
   }
   .date {
-    font-family: Arial, sans-serif;
     font-size: 11px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -460,7 +525,8 @@ function buildPdfHtml(cartilha: CartilhaFull, signatureDataUri: string): string 
     margin: 0 0 28px;
   }
   p {
-    font-size: 15px;
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-size: 19px;
     line-height: 1.6;
     white-space: pre-line;
     margin: 0 0 16px;
@@ -480,20 +546,17 @@ function buildPdfHtml(cartilha: CartilhaFull, signatureDataUri: string): string 
 </style>
 </head>
 <body>
-  <span class="badge">${escapeHtml(CATEGORY_LABEL[cartilha.category])}</span>
-  <h1>${escapeHtml(cartilha.title)}</h1>
-  <p class="date">${escapeHtml(cartilha.dateLabel)}</p>
-  ${paragraphs}
-  <div class="signature"></div>
+  <span class="glow glow-a"></span>
+  <span class="glow glow-b"></span>
+  <div class="content">
+    <span class="badge"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${meta.icon}</svg>${escapeHtml(meta.label)}</span>
+    <h1>${escapeHtml(cartilha.title)}</h1>
+    <p class="date">${escapeHtml(cartilha.dateLabel)}</p>
+    ${paragraphs}
+    <div class="signature"></div>
+  </div>
 </body>
 </html>`
-}
-
-const CATEGORY_LABEL: Record<Category, string> = {
-  poema: "Poema",
-  cronica: "Crônica",
-  conto: "Conto",
-  ensaio: "Ensaio",
 }
 
 function escapeHtml(value: string): string {
@@ -522,7 +585,12 @@ async function renderCartilhaPdf(env: Env, cartilha: CartilhaFull): Promise<Resp
   const html = buildPdfHtml(cartilha, signatureDataUri)
   const pdf = await env.BROWSER.quickAction("pdf", {
     html,
-    pdfOptions: { printBackground: true, format: "a4" },
+    // `networkidle0` espera a folha de estilo do Google Fonts (Cormorant
+    // Garamond/Outfit) terminar de baixar antes de capturar - sem isso o
+    // PDF às vezes sai com a fonte de fallback por pegar a página antes
+    // da fonte web carregar.
+    gotoOptions: { waitUntil: "networkidle0" },
+    pdfOptions: { printBackground: true, format: "a4", margin: { top: 0, right: 0, bottom: 0, left: 0 } },
   })
   const headers = new Headers(pdf.headers)
   headers.set("content-disposition", `attachment; filename="${cartilha.id}-${slugify(cartilha.title)}.pdf"`)
