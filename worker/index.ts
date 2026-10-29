@@ -138,7 +138,19 @@ function dateLabel(dateISO: string): string {
   )
 }
 
-function toFull(meta: CartilhaFrontmatter, body: string): CartilhaFull {
+// O editor rico serializa quebra de linha forçada (Shift+Enter dentro da
+// mesma estrofe/parágrafo, não uma estrofe nova) como barra invertida +
+// quebra de linha - sintaxe padrão de "hard break" do CommonMark. Nada no
+// site interpretava essa barra (nem o leitor, nem o excerto, nem o PDF);
+// todos só tratavam `\n` como quebra visual via `white-space: pre-line` e
+// deixavam a barra como texto literal. Normaliza aqui, uma vez só, pra
+// servir `body`/`excerpt` já limpos em toda API (pública, admin, PDF).
+function stripHardBreakMarkers(body: string): string {
+  return body.replace(/\\\n/g, "\n")
+}
+
+function toFull(meta: CartilhaFrontmatter, rawBody: string): CartilhaFull {
+  const body = stripHardBreakMarkers(rawBody)
   return {
     ...meta,
     dateLabel: dateLabel(meta.dateISO),
