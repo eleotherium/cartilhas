@@ -1,4 +1,5 @@
 export type Category = "poema" | "cronica" | "conto" | "ensaio"
+export type Status = "published" | "private" | "draft"
 
 export interface Cartilha {
   id: number
@@ -10,6 +11,7 @@ export interface Cartilha {
   body: string
   excerpt: string
   wordCount: number
+  status: Status
 }
 
 export type SortField = "alpha" | "date"

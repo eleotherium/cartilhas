@@ -8,7 +8,8 @@ import { PeriodSelector } from "./PeriodSelector"
 import { defaultPeriod, type PeriodValue } from "./periodRange"
 import { RichEditor } from "./RichEditor"
 import { ShareButton, TextStatsStrip } from "./TextTools"
-import type { Category } from "@/types/cartilha"
+import { VersionHistory } from "./VersionHistory"
+import type { Category, Status } from "@/types/cartilha"
 
 interface CartilhaEditorProps {
   id: number | "new"
@@ -21,9 +22,81 @@ interface FormState {
   category: Category
   dateISO: string
   dateNote: string
+  status: Status
 }
 
-const EMPTY_FORM: FormState = { title: "", category: "poema", dateISO: "", dateNote: "" }
+// Rascunho por padrão num texto novo - não sai publicado (e não dispara
+// notificação por email) só porque o admin esqueceu de escolher o status
+// antes do primeiro save.
+const EMPTY_FORM: FormState = { title: "", category: "poema", dateISO: "", dateNote: "", status: "draft" }
+
+const STATUS_META: Record<Status, { label: string; bg: string; fg: string }> = {
+  published: { label: "Publicado", bg: "bg-calendula-soft", fg: "text-calendula-deep" },
+  private: { label: "Privado", bg: "bg-violeta-soft", fg: "text-violeta-deep" },
+  draft: { label: "Rascunho", bg: "bg-ink/8", fg: "text-ink-soft" },
+}
+const STATUS_ORDER: Status[] = ["published", "private", "draft"]
+
+// Mesmo padrão do `CategoryPillSelect` logo abaixo (pílula clicável com
+// dropdown) - status e categoria são os dois metadados "de identidade" do
+// texto, então compartilham a mesma linguagem de interação.
+function StatusPillSelect({ value, onChange }: { value: Status; onChange: (status: Status) => void }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const meta = STATUS_META[value]
+
+  useEffect(() => {
+    if (!open) return
+    function handleClickOutside(event: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [open])
+
+  return (
+    <div ref={rootRef} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full py-1.5 pl-3 pr-2 text-xs font-semibold uppercase tracking-[0.08em] transition-transform duration-150 active:scale-95",
+          meta.bg,
+          meta.fg,
+        )}
+      >
+        {meta.label}
+        <ChevronDown className="h-3 w-3" strokeWidth={2.5} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-20 mt-2 w-40">
+          <div className="flex flex-col gap-1 rounded-2xl border border-ink/10 bg-paper p-2 shadow-[0_24px_60px_-16px_rgb(35_31_26_/_0.4)]">
+            {STATUS_ORDER.map((status) => {
+              const m = STATUS_META[status]
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => {
+                    onChange(status)
+                    setOpen(false)
+                  }}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-left text-xs font-semibold uppercase tracking-[0.06em] transition-colors duration-150",
+                    status === value ? cn(m.bg, m.fg) : "text-ink-soft hover:bg-ink/6",
+                  )}
+                >
+                  {m.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // Pílula de categoria clicável (mesma cor/forma do badge que aparece no
 // card da lista e no leitor público) que abre um menu pra trocar - troca o
@@ -109,6 +182,9 @@ function parseRawMarkdown(raw: string): { form: FormState; bodyMarkdown: string 
       category: (fields.category as Category) ?? "poema",
       dateISO: fields.dateISO ?? "",
       dateNote: fields.dateNote ?? "",
+      // Mesmo fallback do worker (ver worker/index.ts, parseFrontmatter) -
+      // textos salvos antes dessa feature existir não têm o campo.
+      status: (fields.status as Status) ?? "published",
     },
     bodyMarkdown: body.trim(),
   }
@@ -121,10 +197,16 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod())
+  // Força remontar o RichEditor depois de restaurar uma versão antiga -
+  // `useEditor` (RichEditor.tsx) só lê `initialMarkdown` na montagem, não
+  // reage a ela mudando depois, então trocar só o estado não atualiza o
+  // conteúdo já renderizado no editor.
+  const [editorKey, setEditorKey] = useState(0)
   const editorRef = useRef<Editor | null>(null)
 
-  useEffect(() => {
+  function loadRaw() {
     if (id === "new") return
+    setLoading(true)
     fetch(`/api/admin/cartilhas/${id}/raw`)
       .then((res) => {
         if (!res.ok) throw new Error(`status ${res.status}`)
@@ -134,10 +216,13 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
         const { form, bodyMarkdown } = parseRawMarkdown(raw)
         setForm(form)
         setInitialMarkdown(bodyMarkdown)
+        setEditorKey((k) => k + 1)
       })
       .catch(() => setError("Não deu pra carregar esse texto."))
       .finally(() => setLoading(false))
-  }, [id])
+  }
+
+  useEffect(loadRaw, [id])
 
   async function handleSave() {
     if (!editorRef.current) return
@@ -231,6 +316,7 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
           {id !== "new" && (
             <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-end">
               <PeriodSelector value={period} onChange={setPeriod} />
+              <VersionHistory id={id} onRestored={loadRaw} />
               <ShareButton id={id} />
             </div>
           )}
@@ -244,7 +330,10 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
           de formulário de admin (pedido explícito: nada de caixa com
           borda + label acima de cada campo). */}
       <div className="flex flex-col gap-3">
-        <CategoryPillSelect value={form.category} onChange={(category) => setForm((f) => ({ ...f, category }))} />
+        <div className="flex flex-wrap items-center gap-2">
+          <CategoryPillSelect value={form.category} onChange={(category) => setForm((f) => ({ ...f, category }))} />
+          <StatusPillSelect value={form.status} onChange={(status) => setForm((f) => ({ ...f, status }))} />
+        </div>
         <input
           type="text"
           value={form.title}
@@ -274,7 +363,7 @@ export function CartilhaEditor({ id, onBack, onSaved }: CartilhaEditorProps) {
 
       {id !== "new" && <TextStatsStrip id={id} period={period} />}
 
-      <RichEditor initialMarkdown={initialMarkdown} onReady={(editor) => (editorRef.current = editor)} />
+      <RichEditor key={editorKey} initialMarkdown={initialMarkdown} onReady={(editor) => (editorRef.current = editor)} />
     </div>
   )
 }

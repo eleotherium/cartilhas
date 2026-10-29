@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/EmptyState"
 import { ReadingDrawer } from "@/components/ReadingDrawer"
 import { SearchBar } from "@/components/SearchBar"
 import { SortToggle } from "@/components/SortToggle"
+import { SubscribeForm } from "@/components/SubscribeForm"
 import { CATEGORY_ORDER } from "@/lib/categories"
 import { EASE_OUT } from "@/lib/motion"
 import { normalize } from "@/lib/utils"
@@ -241,6 +242,7 @@ function App() {
             Desktop/ro: o título fica centralizado mesmo com a barra aberta
             ou fechada, a barra vive na linha de baixo). */}
         <AppHeader />
+        <SubscribeForm />
 
         <div ref={rowRef} className="relative flex pb-16">
           {/* Espaçador: reserva o espaço que a sidebar fixed ocuparia,

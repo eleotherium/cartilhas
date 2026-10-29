@@ -281,6 +281,20 @@ export function AdminApp() {
                                     {meta.label}
                                   </span>
                                   <span className="text-xs text-ink-faint">{item.dateLabel}</span>
+                                  {/* Indicador só quando NÃO publicado - publicado é o padrão
+                                      silencioso, só rascunho/privado precisam chamar atenção
+                                      pra o admin saber de relance o que está escondido do
+                                      público. */}
+                                  {item.status !== "published" && (
+                                    <span
+                                      className={cn(
+                                        "rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.05em]",
+                                        item.status === "draft" ? "bg-ink/8 text-ink-soft" : "bg-violeta-soft text-violeta-deep",
+                                      )}
+                                    >
+                                      {item.status === "draft" ? "Rascunho" : "Privado"}
+                                    </span>
+                                  )}
                                 </div>
                                 <p className="truncate font-serif text-lg font-bold text-ink">{item.title}</p>
                               </div>
@@ -312,6 +326,7 @@ export function AdminApp() {
         onNavigate={handlePreviewNavigate}
         hasPrev={previewIndex > 0}
         hasNext={previewIndex >= 0 && previewIndex < filtered.length - 1}
+        adminPdf
         extraHeaderActions={
           previewCartilha && (
             <>

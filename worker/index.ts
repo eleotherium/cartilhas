@@ -8,6 +8,7 @@
 // público) não precisar listar+ler todos os objetos a cada request.
 
 type Category = "poema" | "cronica" | "conto" | "ensaio"
+type Status = "published" | "private" | "draft"
 
 interface CartilhaFrontmatter {
   id: number
@@ -15,6 +16,7 @@ interface CartilhaFrontmatter {
   category: Category
   dateISO: string
   dateNote: string
+  status: Status
 }
 
 interface CartilhaFull extends CartilhaFrontmatter {
@@ -27,11 +29,49 @@ interface CartilhaFull extends CartilhaFrontmatter {
 const INDEX_KEY = "_index.json"
 const MD_KEY_RE = /^(\d+)\.md$/
 
+// Prefixo das versões antigas no R2: `history/<id>/<timestamp-ISO>.md`,
+// snapshot completo (frontmatter + corpo) do conteúdo ANTERIOR a cada
+// sobrescrita (ver `PUT /api/admin/cartilhas/:id`). Sem poda/limite -
+// escala de blog pessoal, mesmo espírito do resto do R2 aqui.
+function historyPrefix(id: number): string {
+  return `history/${id}/`
+}
+function historyKey(id: number, timestamp: string): string {
+  return `${historyPrefix(id)}${timestamp}.md`
+}
+
+function slugify(title: string): string {
+  return (
+    title
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "texto"
+  )
+}
+
 function jsonResponse(data: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(data), {
     ...init,
     headers: { "content-type": "application/json; charset=utf-8", ...(init?.headers ?? {}) },
   })
+}
+
+// Resposta HTML mínima e autônoma pros links de confirmação/cancelamento
+// de assinatura (clicados direto do email, fora do SPA - não precisa
+// round-trip pelo React só pra mostrar uma frase).
+function htmlResponse(message: string): Response {
+  const html = `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cartilhas</title>
+<style>
+  body { font-family: Georgia, serif; background: #faf7f1; color: #231f1a; display: grid; place-items: center; min-height: 100vh; margin: 0; padding: 24px; text-align: center; }
+  p { max-width: 420px; font-size: 18px; line-height: 1.5; }
+  a { color: #8f2a05; }
+</style></head>
+<body><p>${message} <a href="https://cartilhas.eleotherium.com">Voltar ao Cartilhas</a></p></body></html>`
+  return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } })
 }
 
 // Parser de frontmatter mínimo (só os 5 campos conhecidos, cada um numa linha,
@@ -59,6 +99,10 @@ function parseFrontmatter(raw: string): { meta: CartilhaFrontmatter; body: strin
     category: (fields.category as Category) ?? "poema",
     dateISO: fields.dateISO ?? "",
     dateNote: fields.dateNote ?? "",
+    // Ausente = texto salvo antes dessa feature existir - trata como
+    // publicado (comportamento de sempre), sem precisar de migração dos
+    // 58 textos já existentes no bucket.
+    status: (fields.status as Status) ?? "published",
   }
   return { meta, body: rest.trim() }
 }
@@ -72,6 +116,7 @@ function serializeFrontmatter(meta: CartilhaFrontmatter): string {
     `category: ${meta.category}`,
     `dateISO: ${esc(meta.dateISO)}`,
     `dateNote: ${esc(meta.dateNote)}`,
+    `status: ${meta.status}`,
     "---",
     "",
   ].join("\n")
@@ -108,8 +153,15 @@ function toFull(meta: CartilhaFrontmatter, body: string): CartilhaFull {
 // existir) - a leitura pública normal usa o cache já pronto. Os `get`
 // rodam em paralelo (não um `for await` sequencial) - com ~58 objetos, ler
 // um de cada vez chegava a levar vários segundos no admin.
+//
+// `delimiter: "/"` faz o R2 tratar "/" como separador de "pasta" e listar
+// só as chaves de nível raiz (`1.md`, `_index.json`, ...) - sem isso, as
+// versões de histórico (`history/<id>/<timestamp>.md`, que só crescem a
+// cada save) entrariam nessa mesma listagem sem prefixo e, cedo ou tarde,
+// estourariam o limite de 1000 objetos por página do R2, truncando o
+// índice de verdade silenciosamente.
 async function rebuildIndex(bucket: R2Bucket): Promise<CartilhaFull[]> {
-  const listed = await bucket.list()
+  const listed = await bucket.list({ delimiter: "/" })
   const keys = listed.objects.map((obj) => obj.key).filter((key) => MD_KEY_RE.test(key))
   const results = await Promise.all(
     keys.map(async (key) => {
@@ -128,7 +180,7 @@ async function rebuildIndex(bucket: R2Bucket): Promise<CartilhaFull[]> {
 }
 
 async function nextId(bucket: R2Bucket): Promise<number> {
-  const listed = await bucket.list()
+  const listed = await bucket.list({ delimiter: "/" })
   let max = 0
   for (const obj of listed.objects) {
     const m = obj.key.match(MD_KEY_RE)
@@ -311,6 +363,7 @@ interface SavePayload {
   dateISO: string
   dateNote: string
   bodyMarkdown: string
+  status: Status
 }
 
 function isSavePayload(value: unknown): value is SavePayload {
@@ -321,21 +374,242 @@ function isSavePayload(value: unknown): value is SavePayload {
     typeof v.category === "string" &&
     typeof v.dateISO === "string" &&
     typeof v.dateNote === "string" &&
-    typeof v.bodyMarkdown === "string"
+    typeof v.bodyMarkdown === "string" &&
+    (v.status === "published" || v.status === "private" || v.status === "draft")
   )
 }
 
+// Dispara ao SALVAR um texto que estava draft/private e virou published
+// (ver chamada no handler PUT) - nunca num texto já publicado sendo só
+// editado de novo. Best-effort: uma falha de envio não derruba o save
+// (o texto já foi gravado no R2 antes disso rodar).
+async function notifySubscribers(env: Env, cartilha: CartilhaFull): Promise<void> {
+  const { results } = await env.DB.prepare(
+    "SELECT email, unsubscribe_token FROM subscribers WHERE status = 'confirmed'",
+  ).all<{ email: string; unsubscribe_token: string }>()
+  if (results.length === 0) return
+  const url = `https://cartilhas.eleotherium.com/t/${cartilha.id}`
+  const unsubBase = "https://cartilhas.eleotherium.com/api/subscribe/unsubscribe"
+  await Promise.allSettled(
+    results.map(async ({ email, unsubscribe_token }) => {
+      const unsubUrl = `${unsubBase}?token=${encodeURIComponent(unsubscribe_token)}`
+      await env.EMAIL.send({
+        from: { name: "Cartilhas", email: "novidades@eleotherium.com" },
+        to: email,
+        subject: `Novo texto: ${cartilha.title}`,
+        text: `${cartilha.title}\n${cartilha.dateLabel}\n\n${cartilha.excerpt}\n\nLer na íntegra: ${url}\n\nCancelar inscrição: ${unsubUrl}`,
+        html: `<p style="font-size:18px"><strong>${escapeHtml(cartilha.title)}</strong></p><p style="color:#55504a">${escapeHtml(cartilha.dateLabel)}</p><p>${escapeHtml(cartilha.excerpt)}</p><p><a href="${url}">Ler na íntegra</a></p><p style="margin-top:24px;font-size:12px;color:#6e6758"><a href="${unsubUrl}">Cancelar inscrição</a></p>`,
+      })
+    }),
+  )
+}
+
+// HTML autônomo (não o SPA) pro Browser Rendering gerar o PDF - mesma
+// identidade visual do leitor (ReadingDrawer.tsx: fundo paper, serif no
+// corpo, assinatura em máscara CSS no final), só que como documento de
+// impressão de verdade. `signatureDataUri` vem já em base64 (ver rota do
+// PDF, que busca `assinatura.png` dos assets estáticos).
+function buildPdfHtml(cartilha: CartilhaFull, signatureDataUri: string): string {
+  const paragraphs = cartilha.body
+    .split(/\n{2,}/)
+    .map((p) => `<p>${escapeHtml(p)}</p>`)
+    .join("\n")
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>${escapeHtml(cartilha.title)}</title>
+<style>
+  @page { margin: 28mm 24mm; }
+  * { box-sizing: border-box; }
+  html, body {
+    background: #faf7f1;
+    color: #231f1a;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body {
+    font-family: Georgia, "Times New Roman", serif;
+    margin: 0;
+    padding: 0;
+  }
+  .badge {
+    display: inline-block;
+    padding: 5px 14px;
+    border-radius: 999px;
+    background: #d44107;
+    color: #faf7f1;
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-size: 32px;
+    line-height: 1.15;
+    margin: 0 0 6px;
+  }
+  .date {
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6e6758;
+    margin: 0 0 28px;
+  }
+  p {
+    font-size: 15px;
+    line-height: 1.6;
+    white-space: pre-line;
+    margin: 0 0 16px;
+  }
+  .signature {
+    margin-top: 40px;
+    height: 60px;
+    width: ${Math.round(60 * (1191 / 878))}px;
+    background-color: #8f2a05;
+    -webkit-mask-image: url(${signatureDataUri});
+    mask-image: url(${signatureDataUri});
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+  }
+</style>
+</head>
+<body>
+  <span class="badge">${escapeHtml(CATEGORY_LABEL[cartilha.category])}</span>
+  <h1>${escapeHtml(cartilha.title)}</h1>
+  <p class="date">${escapeHtml(cartilha.dateLabel)}</p>
+  ${paragraphs}
+  <div class="signature"></div>
+</body>
+</html>`
+}
+
+const CATEGORY_LABEL: Record<Category, string> = {
+  poema: "Poema",
+  cronica: "Crônica",
+  conto: "Conto",
+  ensaio: "Ensaio",
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+async function signatureAsDataUri(env: Env): Promise<string> {
+  // Caminho estável em `public/assinatura.png` (ver cópia do asset) -
+  // `env.ASSETS.fetch` serve os assets estáticos do próprio deploy, URL
+  // real precisa bater com o domínio de produção (não importa pro
+  // roteamento interno, mas evita qualquer validação de origem estranha).
+  const res = await env.ASSETS.fetch(new Request("https://cartilhas.eleotherium.com/assinatura.png"))
+  const buf = await res.arrayBuffer()
+  let binary = ""
+  const bytes = new Uint8Array(buf)
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+  return `data:image/png;base64,${btoa(binary)}`
+}
+
+async function renderCartilhaPdf(env: Env, cartilha: CartilhaFull): Promise<Response> {
+  const signatureDataUri = await signatureAsDataUri(env)
+  const html = buildPdfHtml(cartilha, signatureDataUri)
+  const pdf = await env.BROWSER.quickAction("pdf", {
+    html,
+    pdfOptions: { printBackground: true, format: "a4" },
+  })
+  const headers = new Headers(pdf.headers)
+  headers.set("content-disposition", `attachment; filename="${cartilha.id}-${slugify(cartilha.title)}.pdf"`)
+  return new Response(pdf.body, { status: pdf.status, headers })
+}
+
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const { pathname } = new URL(request.url)
     const bucket = env.CARTILHAS_BUCKET
 
     if (pathname === "/api/cartilhas" && request.method === "GET") {
+      // `_index.json` guarda TODOS os status (o admin precisa deles) - a
+      // filtragem pro público acontece só aqui, na única porta de entrada
+      // de dados do leitor público (App.tsx busca tudo de uma vez e acha
+      // o texto do `/t/:id` nesse mesmo array, então um id privado/rascunho
+      // simplesmente não aparece nele, sem lógica extra em lugar nenhum).
       const cached = await bucket.get(INDEX_KEY)
-      if (cached) {
-        return new Response(cached.body, { headers: { "content-type": "application/json; charset=utf-8" } })
+      const entries: CartilhaFull[] = cached ? ((await cached.json()) as CartilhaFull[]) : await rebuildIndex(bucket)
+      return jsonResponse(entries.filter((e) => e.status === "published"))
+    }
+
+    // PDF público - só serve textos publicados (mesmo filtro da rota
+    // acima); rascunho/privado só pela rota admin logo abaixo.
+    const publicPdfMatch = pathname.match(/^\/api\/cartilhas\/(\d+)\/pdf$/)
+    if (publicPdfMatch && request.method === "GET") {
+      const obj = await bucket.get(`${publicPdfMatch[1]}.md`)
+      if (!obj) return jsonResponse({ error: "não encontrado" }, { status: 404 })
+      const { meta, body } = parseFrontmatter(await obj.text())
+      if (meta.status !== "published") return jsonResponse({ error: "não encontrado" }, { status: 404 })
+      return renderCartilhaPdf(env, toFull(meta, body))
+    }
+
+    if (pathname === "/api/subscribe" && request.method === "POST") {
+      let payload: unknown
+      try {
+        payload = await request.json()
+      } catch {
+        return jsonResponse({ error: "JSON inválido" }, { status: 400 })
       }
-      return jsonResponse(await rebuildIndex(bucket))
+      const email = (payload as Record<string, unknown> | null)?.email
+      if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return jsonResponse({ error: "email inválido" }, { status: 400 })
+      }
+      const confirmToken = crypto.randomUUID()
+      const unsubscribeToken = crypto.randomUUID()
+      const result = await env.DB.prepare(
+        `INSERT INTO subscribers (email, status, confirm_token, unsubscribe_token, created_at)
+         VALUES (?, 'pending', ?, ?, ?)
+         ON CONFLICT(email) DO UPDATE SET confirm_token = excluded.confirm_token, status = 'pending'
+         WHERE status != 'confirmed'`,
+      )
+        .bind(email, confirmToken, unsubscribeToken, new Date().toISOString())
+        .run()
+      // `changes = 0` só acontece quando o email já está confirmed (a
+      // cláusula WHERE acima barra o upsert) - já é assinante, não manda
+      // outro email de confirmação com um token que não foi de fato salvo.
+      if (result.meta.changes === 0) return jsonResponse({ ok: true, alreadySubscribed: true })
+      const confirmUrl = `https://cartilhas.eleotherium.com/api/subscribe/confirm?token=${encodeURIComponent(confirmToken)}`
+      await env.EMAIL.send({
+        from: { name: "Cartilhas", email: "novidades@eleotherium.com" },
+        to: email,
+        subject: "Confirme sua assinatura",
+        text: `Clique pra confirmar que quer receber novidades do Cartilhas: ${confirmUrl}`,
+        html: `<p>Clique pra confirmar que quer receber novidades do Cartilhas:</p><p><a href="${confirmUrl}">${confirmUrl}</a></p>`,
+      })
+      return jsonResponse({ ok: true })
+    }
+
+    if (pathname === "/api/subscribe/confirm" && request.method === "GET") {
+      const token = new URL(request.url).searchParams.get("token") ?? ""
+      const result = await env.DB.prepare(
+        "UPDATE subscribers SET status = 'confirmed', confirmed_at = ? WHERE confirm_token = ? AND status != 'confirmed'",
+      )
+        .bind(new Date().toISOString(), token)
+        .run()
+      return htmlResponse(
+        result.meta.changes > 0
+          ? "Assinatura confirmada! Agora você recebe um email sempre que um texto novo for publicado."
+          : "Esse link já foi usado ou não é válido.",
+      )
+    }
+
+    if (pathname === "/api/subscribe/unsubscribe" && request.method === "GET") {
+      const token = new URL(request.url).searchParams.get("token") ?? ""
+      await env.DB.prepare("UPDATE subscribers SET status = 'unsubscribed' WHERE unsubscribe_token = ?").bind(token).run()
+      return htmlResponse("Assinatura cancelada. Você não vai mais receber emails de novos textos.")
     }
 
     // Pings de tracking - públicos de propósito (são só incremento de
@@ -475,6 +749,59 @@ export default {
         return new Response(await obj.text(), { headers: { "content-type": "text/markdown; charset=utf-8" } })
       }
 
+      const pdfMatch = pathname.match(/^\/api\/admin\/cartilhas\/(\d+)\/pdf$/)
+      if (pdfMatch && request.method === "GET") {
+        const obj = await bucket.get(`${pdfMatch[1]}.md`)
+        if (!obj) return jsonResponse({ error: "não encontrado" }, { status: 404 })
+        const { meta, body } = parseFrontmatter(await obj.text())
+        return renderCartilhaPdf(env, toFull(meta, body))
+      }
+
+      const historyListMatch = pathname.match(/^\/api\/admin\/cartilhas\/(\d+)\/history$/)
+      if (historyListMatch && request.method === "GET") {
+        const id = Number(historyListMatch[1])
+        const listed = await bucket.list({ prefix: historyPrefix(id) })
+        const versions = await Promise.all(
+          listed.objects.map(async (obj) => {
+            const timestamp = obj.key.slice(historyPrefix(id).length, -".md".length)
+            const got = await bucket.get(obj.key)
+            const title = got ? parseFrontmatter(await got.text()).meta.title : "(sem título)"
+            return { timestamp, title }
+          }),
+        )
+        versions.sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+        return jsonResponse(versions)
+      }
+
+      const historyRawMatch = pathname.match(/^\/api\/admin\/cartilhas\/(\d+)\/history\/([^/]+)\/raw$/)
+      if (historyRawMatch && request.method === "GET") {
+        const [, id, timestamp] = historyRawMatch
+        const obj = await bucket.get(historyKey(Number(id), timestamp))
+        if (!obj) return jsonResponse({ error: "não encontrado" }, { status: 404 })
+        return new Response(await obj.text(), { headers: { "content-type": "text/markdown; charset=utf-8" } })
+      }
+
+      const historyRestoreMatch = pathname.match(/^\/api\/admin\/cartilhas\/(\d+)\/history\/([^/]+)\/restore$/)
+      if (historyRestoreMatch && request.method === "POST") {
+        const [, idStr, timestamp] = historyRestoreMatch
+        const id = Number(idStr)
+        const oldVersion = await bucket.get(historyKey(id, timestamp))
+        if (!oldVersion) return jsonResponse({ error: "não encontrado" }, { status: 404 })
+        const oldRaw = await oldVersion.text()
+        // Restaurar nunca perde dado: a versão ATUAL (antes de ser
+        // sobrescrita pela restauração) também vira uma entrada de
+        // histórico, com o mesmo padrão usado em cada save normal.
+        const current = await bucket.get(`${id}.md`)
+        if (current) {
+          await bucket.put(historyKey(id, new Date().toISOString()), await current.text(), {
+            httpMetadata: { contentType: "text/markdown; charset=utf-8" },
+          })
+        }
+        await bucket.put(`${id}.md`, oldRaw, { httpMetadata: { contentType: "text/markdown; charset=utf-8" } })
+        const entries = await rebuildIndex(bucket)
+        return jsonResponse(entries.find((e) => e.id === id))
+      }
+
       const putMatch = pathname.match(/^\/api\/admin\/cartilhas\/(new|\d+)$/)
       if (putMatch && request.method === "PUT") {
         let payload: unknown
@@ -484,20 +811,48 @@ export default {
           return jsonResponse({ error: "JSON inválido" }, { status: 400 })
         }
         if (!isSavePayload(payload)) {
-          return jsonResponse({ error: "campos obrigatórios: title, category, dateISO, dateNote, bodyMarkdown" }, { status: 400 })
+          return jsonResponse(
+            { error: "campos obrigatórios: title, category, dateISO, dateNote, bodyMarkdown, status" },
+            { status: 400 },
+          )
         }
         const id = putMatch[1] === "new" ? await nextId(bucket) : Number(putMatch[1])
+
+        // Arquiva a versão atual em history/ ANTES de sobrescrever (feature
+        // de histórico), e guarda o status anterior pra saber se esse save
+        // é uma transição pra "published" (feature de notificação por
+        // email) - um texto `new` não tem versão anterior nenhuma.
+        const previous = putMatch[1] === "new" ? null : await bucket.get(`${id}.md`)
+        let previousStatus: Status | null = null
+        if (previous) {
+          const previousRaw = await previous.text()
+          previousStatus = parseFrontmatter(previousRaw).meta.status
+          await bucket.put(historyKey(id, new Date().toISOString()), previousRaw, {
+            httpMetadata: { contentType: "text/markdown; charset=utf-8" },
+          })
+        }
+
         const meta: CartilhaFrontmatter = {
           id,
           title: payload.title,
           category: payload.category,
           dateISO: payload.dateISO,
           dateNote: payload.dateNote,
+          status: payload.status,
         }
         const raw = serializeFrontmatter(meta) + payload.bodyMarkdown.trim() + "\n"
         await bucket.put(`${id}.md`, raw, { httpMetadata: { contentType: "text/markdown; charset=utf-8" } })
         const entries = await rebuildIndex(bucket)
-        return jsonResponse(entries.find((e) => e.id === id))
+        const saved = entries.find((e) => e.id === id)
+
+        // Notifica assinantes só na transição PRA published - nunca ao só
+        // reeditar um texto que já era público (ver notifySubscribers).
+        // Best-effort: uma falha aqui não desfaz o save, que já aconteceu.
+        if (saved && previousStatus !== "published" && meta.status === "published") {
+          ctx.waitUntil(notifySubscribers(env, saved).catch(() => {}))
+        }
+
+        return jsonResponse(saved)
       }
 
       const delMatch = pathname.match(/^\/api\/admin\/cartilhas\/(\d+)$/)

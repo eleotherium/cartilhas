@@ -1,5 +1,5 @@
 import * as Dialog from "@radix-ui/react-dialog"
-import { ChevronLeft, ChevronRight, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, Download, X } from "lucide-react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { CATEGORY_META } from "@/lib/categories"
@@ -22,9 +22,12 @@ interface ReadingDrawerProps {
    * decisão explícita (stats por texto é um dado só do admin, não social
    * proof público). */
   extraHeaderActions?: ReactNode
+  /** true só no preview do admin - usa a rota de PDF autenticada (serve
+   * qualquer status) em vez da pública (só serve texto publicado). */
+  adminPdf?: boolean
 }
 
-export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext, extraHeaderActions }: ReadingDrawerProps) {
+export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext, extraHeaderActions, adminPdf }: ReadingDrawerProps) {
   const reduceMotion = useReducedMotion()
   // Par estado+ref pro container de rolagem: o estado existe só pra
   // disparar o efeito de leitura logo abaixo de novo assim que o nó
@@ -193,7 +196,7 @@ export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext,
                     />
                   </>
                 )}
-                <div className="relative mb-6 flex items-center justify-between">
+                <div className="relative mb-5 flex items-center justify-between">
                   {meta && Icon && (
                     <span
                       className={cn(
@@ -213,6 +216,13 @@ export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext,
                         <span className="mx-1 h-5 w-px bg-ink/10" />
                       </>
                     )}
+                    <a
+                      href={`${adminPdf ? "/api/admin" : "/api"}/cartilhas/${cartilha.id}/pdf`}
+                      aria-label="Baixar como PDF"
+                      className="glass-card grid h-10 w-10 place-items-center rounded-full text-ink-soft transition-[opacity,transform] duration-150 hover:text-calendula-deep active:scale-90"
+                    >
+                      <Download className="h-4 w-4" strokeWidth={1.75} />
+                    </a>
                     <button
                       type="button"
                       onClick={() => onNavigate(-1)}
@@ -258,7 +268,7 @@ export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext,
                         <Dialog.Title className="mb-1 font-serif text-4xl font-bold leading-tight text-ink">
                           {cartilha.title}
                         </Dialog.Title>
-                        <p className="mb-8 text-xs uppercase tracking-[0.08em] text-ink-faint">
+                        <p className="mb-6 text-xs uppercase tracking-[0.08em] text-ink-faint">
                           {cartilha.dateLabel}
                         </p>
                       </motion.div>
@@ -272,7 +282,7 @@ export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext,
                           animando quase juntas (STAGGER_CAP trava o delay
                           máximo), e blur é a propriedade mais cara de animar -
                           era o principal motivo do modal "carregar devagar". */}
-                      <div className="space-y-6">
+                      <div className="space-y-4">
                         {paragraphs.map((paragraph, i) => (
                           <motion.p
                             key={i}
@@ -283,7 +293,7 @@ export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext,
                               ease: EASE_OUT,
                               delay: 0.1 + Math.min(i, STAGGER_CAP) * STAGGER_STEP,
                             }}
-                            className="whitespace-pre-line font-serif text-[20px] leading-[1.75] text-ink"
+                            className="whitespace-pre-line font-serif text-[20px] leading-[1.5] text-ink"
                           >
                             {paragraph}
                           </motion.p>

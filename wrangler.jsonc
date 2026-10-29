@@ -12,6 +12,20 @@
   "r2_buckets": [
     { "binding": "CARTILHAS_BUCKET", "bucket_name": "cartilhas-content" }
   ],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "cartilhas-subscribers", "database_id": "a86a60ff-0ed6-49bc-ae27-9896c6ad72da" }
+  ],
+  // Browser Rendering (geração de PDF) - sem custo adicional no plano
+  // gratuito do Workers no volume de um blog pessoal (10min/dia inclusos).
+  "browser": {
+    "binding": "BROWSER"
+  },
+  // Exige onboard do domínio eleotherium.com em Compute > Email Service >
+  // Email Sending no painel Cloudflare antes de funcionar - e exige Workers
+  // Paid pra mandar pra destinatários arbitrários (assinantes reais).
+  "send_email": [
+    { "name": "EMAIL", "remote": true }
+  ],
   "routes": [
     { "pattern": "cartilhas.eleotherium.com", "custom_domain": true }
   ],
