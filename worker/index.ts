@@ -529,6 +529,11 @@ function buildPdfHtml(cartilha: CartilhaFull, signatureDataUri: string): string 
   body {
     position: relative;
     min-height: 100vh;
+    /* Só horizontal aqui - a quebra de página corta a caixa só no eixo
+       vertical, então padding-left/right (perpendicular ao corte) vale
+       igual em toda página sozinho, sem precisar do margin nativo do
+       Puppeteer (que cuida só do topo/fundo - ver pdfOptions). */
+    padding: 0 24mm;
     color: #231f1a;
     font-family: "Outfit", Arial, sans-serif;
     -webkit-print-color-adjust: exact;
@@ -638,12 +643,14 @@ async function renderCartilhaPdf(env: Env, cartilha: CartilhaFull): Promise<Resp
     // PDF às vezes sai com a fonte de fallback por pegar a página antes
     // da fonte web carregar.
     gotoOptions: { waitUntil: "networkidle0" },
-    // `margin` do Puppeteer, não `@page` do CSS: os dois criam uma área
-    // segura que se repete em toda página, mas só o `margin` daqui deixa o
-    // fundo (printBackground) sangrar até a borda física - `@page` margin
-    // é uma "margin box" de verdade da spec de Paged Media, onde nada que
-    // o documento pinta (nem position:fixed) aparece, ponto final.
-    pdfOptions: { printBackground: true, format: "a4", margin: { top: "28mm", bottom: "28mm", left: "24mm", right: "24mm" } },
+    // Só top/bottom aqui - testado na prática: margin.left/right do
+    // Puppeteer não ficou consistente (texto saiu colado na borda
+    // esquerda mesmo com o valor setado), então o espaço horizontal vem
+    // do padding do body (ver buildPdfHtml) - esse sim se repete sozinho
+    // em toda página, sem depender desse mecanismo. Vertical continua
+    // tendo que vir daqui porque, ao contrário do horizontal, padding
+    // vertical num bloco não se repete a cada quebra de página.
+    pdfOptions: { printBackground: true, format: "a4", margin: { top: "28mm", bottom: "28mm" } },
   })
   const headers = new Headers(pdf.headers)
   headers.set("content-disposition", `attachment; filename="${cartilha.id}-${slugify(cartilha.title)}.pdf"`)
