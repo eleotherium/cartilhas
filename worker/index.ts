@@ -379,6 +379,44 @@ function isSavePayload(value: unknown): value is SavePayload {
   )
 }
 
+// Casca visual compartilhada pelos 3 emails transacionais (confirmação,
+// agradecimento, novo texto) - email não é Chromium, então nada de fonte
+// web/CSS externo (a maioria dos clientes bloqueia): só estilo inline e
+// pilha de fontes seguras (Georgia pro serif do site, Arial pro sans),
+// mas com as mesmas cores da marca. `cta` é opcional (o email de
+// agradecimento não precisa de botão).
+function emailShellHtml(opts: { heading: string; bodyHtml: string; cta?: { label: string; url: string }; footerHtml: string }): string {
+  const ctaHtml = opts.cta
+    ? `<tr><td style="padding:4px 36px 8px;">
+         <a href="${opts.cta.url}" style="display:inline-block;background:#d44107;color:#faf7f1;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:999px;">${escapeHtml(opts.cta.label)}</a>
+       </td></tr>`
+    : ""
+  return `<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /></head>
+<body style="margin:0;padding:0;background:#f1ece2;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1ece2;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background:#faf7f1;border-radius:20px;">
+        <tr><td style="padding:36px 36px 4px;text-align:center;">
+          <span style="font-family:Georgia,'Times New Roman',serif;font-weight:bold;font-size:26px;color:#8f2a05;letter-spacing:-0.01em;">Cartilhas</span>
+        </td></tr>
+        <tr><td style="padding:20px 36px 4px;">
+          <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:21px;color:#231f1a;margin:0 0 14px;">${escapeHtml(opts.heading)}</h1>
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.65;color:#55504a;">${opts.bodyHtml}</div>
+        </td></tr>
+        ${ctaHtml}
+        <tr><td style="padding:28px 36px 36px;">
+          <img src="https://cartilhas.eleotherium.com/assinatura.png" width="110" alt="" style="display:block;opacity:0.85;" />
+        </td></tr>
+      </table>
+      <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.6;color:#948c7a;margin-top:18px;max-width:480px;">${opts.footerHtml}</div>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
 // Dispara ao SALVAR um texto que estava draft/private e virou published
 // (ver chamada no handler PUT) - nunca num texto já publicado sendo só
 // editado de novo. Best-effort: uma falha de envio não derruba o save
@@ -398,7 +436,12 @@ async function notifySubscribers(env: Env, cartilha: CartilhaFull): Promise<void
         to: email,
         subject: `Novo texto: ${cartilha.title}`,
         text: `${cartilha.title}\n${cartilha.dateLabel}\n\n${cartilha.excerpt}\n\nLer na íntegra: ${url}\n\nCancelar inscrição: ${unsubUrl}`,
-        html: `<p style="font-size:18px"><strong>${escapeHtml(cartilha.title)}</strong></p><p style="color:#55504a">${escapeHtml(cartilha.dateLabel)}</p><p>${escapeHtml(cartilha.excerpt)}</p><p><a href="${url}">Ler na íntegra</a></p><p style="margin-top:24px;font-size:12px;color:#6e6758"><a href="${unsubUrl}">Cancelar inscrição</a></p>`,
+        html: emailShellHtml({
+          heading: cartilha.title,
+          bodyHtml: `<p style="margin:0 0 4px;text-transform:uppercase;letter-spacing:0.06em;font-size:11px;color:#8f2a05;">${escapeHtml(cartilha.dateLabel)}</p><p style="margin:0;">${escapeHtml(cartilha.excerpt)}</p>`,
+          cta: { label: "Ler na íntegra", url },
+          footerHtml: `Você recebeu esse email por ser assinante do Cartilhas. <a href="${unsubUrl}" style="color:#8f2a05;">Cancelar inscrição</a>.`,
+        }),
       })
     }),
   )
@@ -469,32 +512,39 @@ function buildPdfHtml(cartilha: CartilhaFull, signatureDataUri: string): string 
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
-  @page { margin: 0; }
+  /* Margem de verdade do Chromium - diferente de padding num bloco (só
+     aplica uma vez, no topo/fundo do fluxo todo), @page se repete em
+     TODA página impressa, então é a única forma de ter uma "área segura"
+     consistente a partir da 2ª página. O preço é que fundo não pinta
+     dentro dela (ver .page-bg/.glow abaixo). */
+  @page { margin: 28mm 24mm; }
   * { box-sizing: border-box; }
-  html {
-    background: #faf7f1;
-    min-height: 100%;
-  }
+  html, body { margin: 0; }
   body {
     position: relative;
-    min-height: 100vh;
-    margin: 0;
-    padding: 32mm 24mm;
     color: #231f1a;
     font-family: "Outfit", Arial, sans-serif;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
-    overflow: hidden;
+  }
+  /* position: fixed é a única forma de sangrar fundo por baixo da
+     margem do @page em TODA página - o Chromium repete elementos fixed
+     a cada página impressa (mesmo truque de cabeçalho/rodapé repetido),
+     então isso cobre a página inteira, inclusive a margem, em todas elas. */
+  .page-bg {
+    position: fixed;
+    inset: 0;
+    background: #faf7f1;
+    z-index: -2;
   }
   .glow {
-    position: absolute;
+    position: fixed;
     border-radius: 50%;
     filter: blur(70px);
-    z-index: 0;
+    z-index: -1;
   }
   .glow-a { top: -80px; right: -120px; width: 380px; height: 380px; background: ${meta.glow}; }
   .glow-b { bottom: -100px; left: -90px; width: 320px; height: 320px; background: ${meta.glowComplement}; }
-  .content { position: relative; z-index: 1; }
   .badge {
     display: inline-flex;
     align-items: center;
@@ -533,8 +583,8 @@ function buildPdfHtml(cartilha: CartilhaFull, signatureDataUri: string): string 
   }
   .signature {
     margin-top: 40px;
-    height: 60px;
-    width: ${Math.round(60 * (1191 / 878))}px;
+    height: 100px;
+    width: ${Math.round(100 * (1191 / 878))}px;
     background-color: #8f2a05;
     -webkit-mask-image: url(${signatureDataUri});
     mask-image: url(${signatureDataUri});
@@ -546,15 +596,14 @@ function buildPdfHtml(cartilha: CartilhaFull, signatureDataUri: string): string 
 </style>
 </head>
 <body>
+  <span class="page-bg"></span>
   <span class="glow glow-a"></span>
   <span class="glow glow-b"></span>
-  <div class="content">
-    <span class="badge"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${meta.icon}</svg>${escapeHtml(meta.label)}</span>
-    <h1>${escapeHtml(cartilha.title)}</h1>
-    <p class="date">${escapeHtml(cartilha.dateLabel)}</p>
-    ${paragraphs}
-    <div class="signature"></div>
-  </div>
+  <span class="badge"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${meta.icon}</svg>${escapeHtml(meta.label)}</span>
+  <h1>${escapeHtml(cartilha.title)}</h1>
+  <p class="date">${escapeHtml(cartilha.dateLabel)}</p>
+  ${paragraphs}
+  <div class="signature"></div>
 </body>
 </html>`
 }
@@ -590,7 +639,10 @@ async function renderCartilhaPdf(env: Env, cartilha: CartilhaFull): Promise<Resp
     // PDF às vezes sai com a fonte de fallback por pegar a página antes
     // da fonte web carregar.
     gotoOptions: { waitUntil: "networkidle0" },
-    pdfOptions: { printBackground: true, format: "a4", margin: { top: 0, right: 0, bottom: 0, left: 0 } },
+    // Sem `margin` aqui de propósito - deixa o `@page` do HTML (que se
+    // repete em toda página, ao contrário de padding num bloco) definir
+    // a área segura.
+    pdfOptions: { printBackground: true, format: "a4" },
   })
   const headers = new Headers(pdf.headers)
   headers.set("content-disposition", `attachment; filename="${cartilha.id}-${slugify(cartilha.title)}.pdf"`)
@@ -655,20 +707,45 @@ export default {
         to: email,
         subject: "Confirme sua assinatura",
         text: `Clique pra confirmar que quer receber novidades do Cartilhas: ${confirmUrl}`,
-        html: `<p>Clique pra confirmar que quer receber novidades do Cartilhas:</p><p><a href="${confirmUrl}">${confirmUrl}</a></p>`,
+        html: emailShellHtml({
+          heading: "Confirme sua assinatura",
+          bodyHtml: "<p style=\"margin:0;\">Clique no botão abaixo pra confirmar que você quer receber um email sempre que um texto novo for publicado no Cartilhas.</p>",
+          cta: { label: "Confirmar assinatura", url: confirmUrl },
+          footerHtml: "Se você não pediu essa assinatura, pode ignorar este email.",
+        }),
       })
       return jsonResponse({ ok: true })
     }
 
     if (pathname === "/api/subscribe/confirm" && request.method === "GET") {
       const token = new URL(request.url).searchParams.get("token") ?? ""
-      const result = await env.DB.prepare(
-        "UPDATE subscribers SET status = 'confirmed', confirmed_at = ? WHERE confirm_token = ? AND status != 'confirmed'",
+      // RETURNING traz o email/token na mesma query do UPDATE - precisa
+      // dos dois pra mandar o email de agradecimento com o link de
+      // cancelar inscrição (e saber se o token era válido: `row` nulo =
+      // link já usado ou inválido).
+      const row = await env.DB.prepare(
+        "UPDATE subscribers SET status = 'confirmed', confirmed_at = ? WHERE confirm_token = ? AND status != 'confirmed' RETURNING email, unsubscribe_token",
       )
         .bind(new Date().toISOString(), token)
-        .run()
+        .first<{ email: string; unsubscribe_token: string }>()
+      if (row) {
+        const unsubUrl = `https://cartilhas.eleotherium.com/api/subscribe/unsubscribe?token=${encodeURIComponent(row.unsubscribe_token)}`
+        await env.EMAIL.send({
+          from: { name: "Cartilhas", email: "novidades@eleotherium.com" },
+          to: row.email,
+          subject: "Assinatura confirmada - obrigado!",
+          text: `Obrigado por acompanhar o Cartilhas! A partir de agora você recebe um email sempre que um texto novo for publicado.\n\nLer os textos: https://cartilhas.eleotherium.com\n\nCancelar inscrição: ${unsubUrl}`,
+          html: emailShellHtml({
+            heading: "Obrigado por assinar!",
+            bodyHtml:
+              '<p style="margin:0;">Sua assinatura está confirmada. A partir de agora você recebe um email sempre que um texto novo for publicado no Cartilhas.</p>',
+            cta: { label: "Ver o Cartilhas", url: "https://cartilhas.eleotherium.com" },
+            footerHtml: `Mudou de ideia? <a href="${unsubUrl}" style="color:#8f2a05;">Cancelar inscrição</a>.`,
+          }),
+        })
+      }
       return htmlResponse(
-        result.meta.changes > 0
+        row
           ? "Assinatura confirmada! Agora você recebe um email sempre que um texto novo for publicado."
           : "Esse link já foi usado ou não é válido.",
       )
