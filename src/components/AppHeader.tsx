@@ -58,6 +58,14 @@ export function AppHeader({ variant = "full" }: AppHeaderProps) {
     height: number
     rotate: number
   } | null>(null)
+  // Largura/altura reais do wrapper = título + o quanto a assinatura escapa
+  // da caixa dele (ela é `position:absolute`, não conta pro layout). Sem
+  // isso, centralizar o wrapper via `text-align:center` do <header>
+  // centraliza só o TEXTO "Cartilhas" - a composição completa (texto +
+  // assinatura, que se estende bem pra direita e pra baixo) fica deslocada
+  // pra fora do centro visual. Só no modo "full": o "compact" não centraliza
+  // nada (fica à esquerda) e não precisa dessa correção.
+  const [wrapperSize, setWrapperSize] = useState<{ width: number; height: number } | null>(null)
 
   useLayoutEffect(() => {
     function measure() {
@@ -91,14 +99,17 @@ export function AppHeader({ variant = "full" }: AppHeaderProps) {
 
       const anchorX = targetRect.right - wrapperRect.left
       const anchorY = targetRect.bottom - wrapperRect.top
+      const sigLeft = anchorX + dxFrac * titleHeight
+      const sigTop = anchorY + dyFrac * titleHeight
 
-      setSigBox({
-        left: anchorX + dxFrac * titleHeight,
-        top: anchorY + dyFrac * titleHeight,
-        width,
-        height,
-        rotate,
-      })
+      setSigBox({ left: sigLeft, top: sigTop, width, height, rotate })
+
+      if (!compact) {
+        setWrapperSize({
+          width: Math.max(wrapperRect.width, sigLeft + width),
+          height: Math.max(wrapperRect.height, sigTop + height),
+        })
+      }
     }
     measure()
     // ResizeObserver no wrapper, não só `resize` da janela + `fonts.ready`:
@@ -117,7 +128,7 @@ export function AppHeader({ variant = "full" }: AppHeaderProps) {
       observer.disconnect()
       window.removeEventListener("resize", measure)
     }
-  }, [])
+  }, [compact])
 
   const signatureStyle: CSSProperties | undefined = sigBox
     ? {
@@ -138,8 +149,18 @@ export function AppHeader({ variant = "full" }: AppHeaderProps) {
     : undefined
 
   return (
-    <header className={cn("relative", compact ? "inline-block text-left" : "mb-[66px] text-center")}>
-      <div ref={wrapperRef} className="relative inline-block">
+    <header className={cn("relative", compact ? "inline-block text-left" : "text-center")}>
+      {/* width/height explícitos (não só `inline-block`) no modo "full": é o
+          que faz `text-center` do header acima centralizar a composição
+          INTEIRA (texto + assinatura), não só o retângulo do texto - ver
+          `wrapperSize`. Sem isso a logo "centralizava" mas lia visualmente
+          puxada pra esquerda (a assinatura, que só existe à direita/abaixo
+          do texto, não contava pro cálculo). */}
+      <div
+        ref={wrapperRef}
+        className="relative inline-block"
+        style={wrapperSize ? { width: wrapperSize.width, height: wrapperSize.height } : undefined}
+      >
         {/* Revelação cinética única na primeira carga: cada letra sobe com
             blur (ver docs/motion-principles-web.md). Cor sólida só, sem
             degradê - o resto da página já carrega a mistura de cor. Só no
@@ -148,8 +169,23 @@ export function AppHeader({ variant = "full" }: AppHeaderProps) {
         <h1
           ref={titleRef}
           className={cn(
-            "select-none font-serif font-bold leading-none tracking-tight text-calendula-deep",
-            compact ? "text-3xl sm:text-4xl" : "text-5xl sm:text-6xl lg:text-7xl",
+            // inline-block é essencial, não decorativo: um <h1> é
+            // display:block por padrão, e um bloco com width:auto dentro de
+            // um pai inline-block PREENCHE a largura dele - assim que o
+            // wrapper ganha um width explícito (ver `wrapperSize` acima),
+            // o h1 passava a ocupar essa largura inteira em vez da largura
+            // do texto, inflando a MEDIÇÃO seguinte (que lê o h1 achando
+            // que é o texto) - um loop que chegou a esticar a logo pra
+            // 1667px de largura antes dessa correção.
+            "inline-block select-none font-serif font-bold tracking-tight text-calendula-deep",
+            compact ? "text-3xl sm:text-4xl" : "text-[56px] sm:text-[74px]",
+            // leading-none por último de propósito: o tailwind-merge trata
+            // `text-[Npx]` (tamanho arbitrário, sem line-height embutido,
+            // diferente de uma classe nomeada tipo `text-5xl`) como
+            // conflitante com `leading-*` e descarta o que vier antes -
+            // sem isso o h1 herdava line-height do preflight (1.5), medindo
+            // 84/111px em vez de 56/74px e inflando o cálculo da assinatura.
+            "leading-none",
           )}
         >
           {compact || reduceMotion ? (

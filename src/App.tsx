@@ -1,21 +1,45 @@
-import { AnimatePresence, motion } from "motion/react"
+import { AnimatePresence } from "motion/react"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { AppHeader } from "@/components/AppHeader"
 import { Backdrop } from "@/components/Backdrop"
 import { CartilhaCard } from "@/components/CartilhaCard"
-import { CategoryFilterMobile, CategorySidebar, SidebarToggle, type CategoryFilter } from "@/components/CategorySidebar"
 import { EmptyState } from "@/components/EmptyState"
+import { FeaturedQuote } from "@/components/FeaturedQuote"
+import { GenreTabsRow } from "@/components/GenreTabsRow"
 import { ReadingDrawer } from "@/components/ReadingDrawer"
 import { SearchBar } from "@/components/SearchBar"
-import { SortToggle } from "@/components/SortToggle"
-import { SubscribeForm } from "@/components/SubscribeForm"
+import { SubscribeModal } from "@/components/SubscribeModal"
 import { CATEGORY_ORDER } from "@/lib/categories"
-import { EASE_OUT } from "@/lib/motion"
-import { normalize } from "@/lib/utils"
-import type { Category, Cartilha, SortDirection, SortField } from "@/types/cartilha"
+import { cn, distributeRoundRobin, monthKey, monthLabel, normalize } from "@/lib/utils"
+import type { Category, CategoryFilter, Cartilha, SortDirection, SortField } from "@/types/cartilha"
 
-const SIDEBAR_WIDTH = 272
-const SIDEBAR_GAP = 32
+// Mede a largura real do nó referenciado e a mantém em sync - usado pra
+// igualar a largura da busca à da lista de gêneros ao lado dela (pedido
+// explícito: "a busca com a mesma largura desse conjunto"). Só no layout de
+// 2 colunas (>=1024px, breakpoint `lg`); abaixo disso a busca já vira
+// width:100% via classe no próprio SearchBar.
+function useSyncedWidth(sourceRef: React.RefObject<HTMLElement | null>) {
+  const [width, setWidth] = useState<number | undefined>(undefined)
+  useLayoutEffect(() => {
+    function measure() {
+      if (!sourceRef.current || window.innerWidth < 1024) {
+        setWidth(undefined)
+        return
+      }
+      setWidth(sourceRef.current.scrollWidth)
+    }
+    measure()
+    document.fonts?.ready.then(measure)
+    window.addEventListener("resize", measure)
+    const observer = new ResizeObserver(measure)
+    if (sourceRef.current) observer.observe(sourceRef.current)
+    return () => {
+      window.removeEventListener("resize", measure)
+      observer.disconnect()
+    }
+  }, [sourceRef])
+  return width
+}
 
 function App() {
   // Antes era um `import` estático de JSON gerado em build-time; agora os
@@ -45,12 +69,11 @@ function App() {
   }, [])
 
   const [query, setQuery] = useState("")
-  // Colapsada por padrão - quem quer os gêneros abre pelo ícone de sanduíche.
-  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [category, setCategory] = useState<CategoryFilter>("todos")
   const [sortField, setSortField] = useState<SortField>("date")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
   const [activeId, setActiveId] = useState<number | null>(null)
+  const [subscribeOpen, setSubscribeOpen] = useState(false)
 
   // Ping de leitura: ver ReadingDrawer.tsx - rolar até o fim conta como
   // leitura (ou, se o texto já cabe na tela sem rolar, ficar 5s aberto já
@@ -96,66 +119,23 @@ function App() {
     }
   }, [cartilhas, initialSharedId])
 
-  // A sidebar e o botão são `position: fixed` de verdade (ver
-  // CategorySidebar.tsx) - precisam de um `top` em px medido de verdade,
-  // não chutado, porque a altura do cabeçalho muda com o breakpoint da
-  // fonte do título. Medido uma vez no mount e de novo a cada resize
-  // (nunca em scroll - um elemento fixed não precisa saber da posição de
-  // scroll atual, só de onde a linha "nasce" quando a página está no topo).
-  const rowRef = useRef<HTMLDivElement>(null)
-  const [topOffset, setTopOffset] = useState(140)
-
-  // O ÍCONE (não o painel) fica centralizado no vão vazio entre a linha de
-  // busca/ordenação e o topo da grade de cards - não alinhado com o topo da
-  // busca como o painel. Precisa de dois pontos medidos de verdade (borda
-  // de baixo da linha de busca, borda de cima do conteúdo seguinte), não
-  // metade de uma margem chutada - `-translate-y-1/2` no elemento fixed faz
-  // a centralização final sem precisar saber a altura do ícone.
-  const searchRowRef = useRef<HTMLDivElement>(null)
-  const contentTopRef = useRef<HTMLDivElement>(null)
-  const [toggleOffset, setToggleOffset] = useState(140)
-
-  // Largura da janela, rastreada pra derivar tudo que depende de breakpoint
-  // (gap lateral, nº de colunas da grade) sem precisar de um listener de
-  // resize por coisa - um estado só, tudo recalculado no corpo do render.
+  // Largura da janela, rastreada só pro nº de colunas da grade.
   const [windowWidth, setWindowWidth] = useState(1280)
-
-  useLayoutEffect(() => {
+  useEffect(() => {
     function measure() {
-      if (!rowRef.current) return
-      setTopOffset(Math.round(rowRef.current.getBoundingClientRect().top + window.scrollY))
-      if (searchRowRef.current && contentTopRef.current) {
-        const searchBottom = searchRowRef.current.getBoundingClientRect().bottom
-        const contentTop = contentTopRef.current.getBoundingClientRect().top
-        setToggleOffset(Math.round((searchBottom + contentTop) / 2 + window.scrollY))
-      }
       setWindowWidth(window.innerWidth)
     }
     measure()
-    // fonts.ready: a fonte serifada do título carrega async e muda a altura
-    // do cabeçalho depois da primeira medição (mesmo motivo do AppHeader) -
-    // sem isso o vão fica medido contra a fonte de fallback.
-    document.fonts?.ready.then(measure)
     window.addEventListener("resize", measure)
     return () => window.removeEventListener("resize", measure)
   }, [])
 
-  // Gap esquerdo da página (mesma regra que já existia pro posicionamento
-  // da sidebar/ícone: padding base de 2.5rem, ou metade do espaço sobrando
-  // além de max-w-7xl + 2.5rem, o que for maior) - calculado por fórmula,
-  // não medido do próprio container, porque o container agora usa esse
-  // valor pra montar sua PRÓPRIA margem; medir dele seria circular. Gap
-  // direito: o mesmo, só que reduzido em 2/3 (pedido explícito). Os dois só
-  // valem a partir de `lg` (1024px), onde a sidebar/ícone existem; abaixo
-  // disso o container volta a usar padding simples via classe Tailwind.
-  const leftGap = Math.round(Math.max(40, (windowWidth - 1280) / 2 + 40))
-  const rightGap = Math.round(leftGap / 3)
-  const isDesktop = windowWidth >= 1024
+  const columnCount = windowWidth >= 1536 ? 4 : windowWidth >= 1280 ? 3 : windowWidth >= 640 ? 2 : 1
 
-  // Nº de colunas da grade, espelhando os breakpoints usados antes em
-  // `columns-*` do Tailwind - só que agora pra distribuir os cards em
-  // round-robin (ver `columns` abaixo), não pra um layout CSS multi-coluna.
-  const columnCount = windowWidth >= 1536 && !sidebarOpen ? 4 : windowWidth >= 1280 ? 3 : windowWidth >= 640 ? 2 : 1
+  // Busca com a mesma largura da lista de gêneros ao lado - medida de
+  // verdade (ver `useSyncedWidth`), não chutada.
+  const genreTabsRef = useRef<HTMLElement>(null)
+  const searchWidth = useSyncedWidth(genreTabsRef)
 
   const searched = useMemo(() => {
     const all = cartilhas ?? []
@@ -176,13 +156,63 @@ function App() {
     const filtered = category === "todos" ? searched : searched.filter((c) => c.category === category)
 
     return [...filtered].sort((a, b) => {
+      // "Data" aqui é quando o texto ENTROU NO SITE (`publishedAt`), não a
+      // data do poema (`dateISO`) - é o que dá a ordem de atividade real
+      // do feed (ver worker/index.ts, fallback pra `dateISO` já embutido
+      // nessa mesma string pros textos antigos).
       const comparison =
         sortField === "alpha"
           ? a.title.localeCompare(b.title, "pt-BR")
-          : a.dateISO.localeCompare(b.dateISO)
+          : a.publishedAt.localeCompare(b.publishedAt)
       return sortDirection === "asc" ? comparison : -comparison
     })
   }, [searched, category, sortField, sortDirection])
+
+  // Destaque do texto mais recente (ver FeaturedQuote) - sempre o mais
+  // recente de VERDADE, entre todos os publicados, nunca afetado por busca
+  // ou filtro de gênero (sem isso, filtrar por "conto" podia destacar um
+  // conto velho em vez de deixar claro que não há atividade recente ali).
+  // Só aparece na navegação "neutra" (sem busca, sem filtro) - ver
+  // `showFeatured` abaixo.
+  const heroCartilha = useMemo(() => {
+    if (!cartilhas || cartilhas.length === 0) return null
+    return [...cartilhas].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0]
+  }, [cartilhas])
+
+  const showFeatured = query.trim() === "" && category === "todos"
+
+  // O texto em destaque não se repete embaixo, só quando ele de fato
+  // apareceria aí (ver `showFeatured`) - buscando/filtrando, a lista
+  // completa aparece normalmente, sem exclusão nenhuma.
+  const listItems = useMemo(() => {
+    if (!showFeatured || !heroCartilha) return visible
+    return visible.filter((c) => c.id !== heroCartilha.id)
+  }, [visible, showFeatured, heroCartilha])
+
+  // Agrupamento por mês de publicação - só faz sentido ordenado por data
+  // (A-Z não tem relação nenhuma com "quando saiu"). Preserva a ordem que
+  // `listItems` já traz (asc/desc já aplicado acima), só quebra em blocos.
+  // Cada grupo distribui em MENOS colunas que a grade cheia quando tem
+  // poucos textos (`Math.min`) - sem isso, um mês com 2 textos numa grade
+  // de 4 colunas sobrava duas colunas vazias ao lado, grade quebrada.
+  const monthGroups = useMemo(() => {
+    if (sortField !== "date") return null
+    const order: string[] = []
+    const byMonth = new Map<string, Cartilha[]>()
+    for (const cartilha of listItems) {
+      const key = monthKey(cartilha.publishedAt)
+      if (!byMonth.has(key)) {
+        byMonth.set(key, [])
+        order.push(key)
+      }
+      byMonth.get(key)!.push(cartilha)
+    }
+    return order.map((key) => {
+      const items = byMonth.get(key)!
+      const pairs = items.map((cartilha, index) => ({ cartilha, index }))
+      return { key, label: monthLabel(key), items, columns: distributeRoundRobin(pairs, Math.min(columnCount, items.length)) }
+    })
+  }, [listItems, sortField, columnCount])
 
   // Distribuição round-robin em colunas (não CSS multi-coluna via
   // `columns-*`): aquilo preenche cada coluna inteira de cima a baixo antes
@@ -192,12 +222,13 @@ function App() {
   // coluna 0 quando dá a volta - cada card mantém sua altura orgânica
   // (ainda não é um grid de alturas iguais), só a ORDEM de distribuição
   // muda, garantindo que a sequência cronológica/alfabética flua da
-  // esquerda pra direita antes de descer.
+  // esquerda pra direita antes de descer. Usada só sem agrupamento por mês
+  // (ordenado A-Z) - com agrupamento, cada mês tem sua própria distribuição
+  // (ver `monthGroups` acima).
   const columns = useMemo(() => {
-    const cols: { cartilha: Cartilha; index: number }[][] = Array.from({ length: columnCount }, () => [])
-    visible.forEach((cartilha, index) => cols[index % columnCount].push({ cartilha, index }))
-    return cols
-  }, [visible, columnCount])
+    const pairs = listItems.map((cartilha, index) => ({ cartilha, index }))
+    return distributeRoundRobin(pairs, columnCount)
+  }, [listItems, columnCount])
 
   const activeIndex = activeId === null ? -1 : visible.findIndex((c) => c.id === activeId)
   const activeCartilha = activeIndex >= 0 ? visible[activeIndex] : null
@@ -215,75 +246,82 @@ function App() {
     }
   }
 
-  const sidebarProps = { selected: category, onSelect: setCategory, counts, total: searched.length }
-
   return (
     <div className="relative min-h-dvh">
       <Backdrop />
-      <CategoryFilterMobile {...sidebarProps} />
 
-      {/* Painel fixed de verdade: fica numa camada própria, fora do fluxo
-          do documento, então nunca é afetado pelo scroll da página (ver
-          CategorySidebar.tsx para o porquê de não ser `sticky`). */}
-      <CategorySidebar open={sidebarOpen} topOffset={topOffset} {...sidebarProps} />
-      <div
-        className="fixed z-20 hidden -translate-x-1/2 -translate-y-1/2 lg:block"
-        style={{ top: toggleOffset, left: leftGap / 2 }}
-      >
-        <SidebarToggle open={sidebarOpen} onToggleOpen={() => setSidebarOpen((o) => !o)} />
-      </div>
-
-      <div
-        className="relative px-6 pt-16 sm:px-10 lg:px-0"
-        style={isDesktop ? { marginLeft: leftGap, marginRight: rightGap } : undefined}
-      >
-        {/* Cabeçalho em largura total, centralizado na página inteira - não
-            dentro da coluna ao lado da sidebar (ver referências em
-            Desktop/ro: o título fica centralizado mesmo com a barra aberta
-            ou fechada, a barra vive na linha de baixo). */}
-        <AppHeader />
-        <SubscribeForm />
-
-        <div ref={rowRef} className="relative flex pb-16">
-          {/* Espaçador: reserva o espaço que a sidebar fixed ocuparia,
-              empurrando o conteúdo - a sidebar em si não está no fluxo
-              (é fixed), então precisa de algo aqui pra abrir espaço. Anima
-              suave junto com o slide da sidebar. */}
-          <motion.div
-            initial={false}
-            animate={{ width: sidebarOpen ? SIDEBAR_WIDTH + SIDEBAR_GAP : 0 }}
-            transition={{ duration: 0.4, ease: EASE_OUT }}
-            className="hidden shrink-0 lg:block"
-          />
-
-          <main className="min-w-0 flex-1">
-            <div ref={searchRowRef} className="mb-10 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <SearchBar value={query} onChange={setQuery} />
-              <div className="flex justify-center sm:contents">
-                <SortToggle
-                  field={sortField}
-                  direction={sortDirection}
-                  onFieldChange={handleFieldChange}
-                  onToggleDirection={() => setSortDirection((d) => (d === "asc" ? "desc" : "asc"))}
-                />
-              </div>
+      <div className="relative mx-auto max-w-[1360px] px-6 pb-16 pt-12 sm:px-10">
+        {/* Identidade + controles (esquerda) e destaque do texto mais
+            recente (direita) - grid de 2 colunas só a partir de `lg`
+            (1024px) e só quando há destaque pra mostrar (ver `showFeatured`
+            logo abaixo: sem ele, a coluna de controles ocupa a largura
+            inteira, não fica "w-fit" sozinha com um vão vazio do lado). */}
+        <div
+          className={cn(
+            "mb-9 flex flex-col gap-8",
+            showFeatured && "lg:grid lg:grid-cols-[auto_1fr] lg:items-stretch lg:gap-9",
+          )}
+        >
+          <div className={cn("flex flex-col", showFeatured && "lg:w-fit")}>
+            {/* `lg:flex-1` só tem efeito quando o grid acima impõe uma
+                altura (via `items-stretch`, quando `showFeatured`) - centra
+                a logo na metade do espaço entre o topo e a busca, em vez
+                de grudada no topo. */}
+            <div className="flex items-center justify-center py-2 lg:flex-1 lg:py-0">
+              <AppHeader />
             </div>
+            <div className="flex flex-col gap-4">
+              <SearchBar value={query} onChange={setQuery} width={searchWidth} />
+              <GenreTabsRow
+                ref={genreTabsRef}
+                selected={category}
+                onSelect={setCategory}
+                counts={counts}
+                total={searched.length}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onFieldChange={handleFieldChange}
+                onToggleDirection={() => setSortDirection((d) => (d === "asc" ? "desc" : "asc"))}
+              />
+            </div>
+          </div>
 
-            <div ref={contentTopRef}>
-              {cartilhas === null ? (
-                <div className="glass mx-auto flex max-w-md flex-col items-center gap-3 rounded-[28px] px-10 py-16 text-center">
-                  <p className="font-serif text-xl font-bold text-ink">
-                    {loadError ? "Não deu pra carregar os textos" : "Carregando os textos…"}
-                  </p>
-                  <p className="text-sm text-ink-faint">
-                    {loadError ? "Recarregue a página pra tentar de novo." : "Só um instante."}
-                  </p>
+          {showFeatured && heroCartilha && (
+            <FeaturedQuote cartilha={heroCartilha} onOpen={(c) => setActiveId(c.id)} onSubscribeClick={() => setSubscribeOpen(true)} />
+          )}
+        </div>
+
+        {cartilhas === null ? (
+          <div className="glass mx-auto flex max-w-md flex-col items-center gap-3 rounded-[28px] px-10 py-16 text-center">
+            <p className="font-serif text-xl font-bold text-ink">
+              {loadError ? "Não deu pra carregar os textos" : "Carregando os textos…"}
+            </p>
+            <p className="text-sm text-ink-faint">
+              {loadError ? "Recarregue a página pra tentar de novo." : "Só um instante."}
+            </p>
+          </div>
+        ) : visible.length === 0 ? (
+          <EmptyState query={query} onClear={() => setQuery("")} />
+        ) : monthGroups ? (
+          <div className="flex flex-col gap-12">
+            {monthGroups.map((group) => (
+              <section key={group.key}>
+                {/* Cabeçalho do mês em caixa normal (não a mesma pílula
+                    uppercase/tracked dos selos de categoria) - de
+                    propósito, pra não repetir a mesma cadência visual duas
+                    vezes na página e ler como uma divisória de arquivo, não
+                    mais um rótulo. */}
+                <div className="mb-5 flex items-baseline gap-4">
+                  <h2 className="whitespace-nowrap font-serif text-xl font-semibold text-ink-soft">
+                    {group.label}
+                  </h2>
+                  <span className="h-px flex-1 bg-ink/10" />
+                  <span className="text-xs text-ink-faint">
+                    {group.items.length === 1 ? "1 texto" : `${group.items.length} textos`}
+                  </span>
                 </div>
-              ) : visible.length === 0 ? (
-                <EmptyState query={query} onClear={() => setQuery("")} />
-              ) : (
                 <div className="flex gap-6">
-                  {columns.map((col, colIndex) => (
+                  {group.columns.map((col, colIndex) => (
                     <div key={colIndex} className="flex min-w-0 flex-1 flex-col gap-6">
                       <AnimatePresence>
                         {col.map(({ cartilha, index }) => (
@@ -298,11 +336,25 @@ function App() {
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
-          </main>
-        </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <div className="flex gap-6">
+            {columns.map((col, colIndex) => (
+              <div key={colIndex} className="flex min-w-0 flex-1 flex-col gap-6">
+                <AnimatePresence>
+                  {col.map(({ cartilha, index }) => (
+                    <CartilhaCard key={cartilha.id} cartilha={cartilha} index={index} onOpen={(c) => setActiveId(c.id)} />
+                  ))}
+                </AnimatePresence>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      <SubscribeModal open={subscribeOpen} onOpenChange={setSubscribeOpen} />
 
       <ReadingDrawer
         cartilha={activeCartilha}

@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { CATEGORY_META } from "@/lib/categories"
 import { Signature } from "@/components/Signature"
-import { cn } from "@/lib/utils"
+import { cn, hasDivergentPublishDate } from "@/lib/utils"
 import { DURATION, EASE_OUT, STAGGER_CAP, STAGGER_STEP } from "@/lib/motion"
 import type { Cartilha } from "@/types/cartilha"
 
@@ -268,9 +268,19 @@ export function ReadingDrawer({ cartilha, onClose, onNavigate, hasPrev, hasNext,
                         <Dialog.Title className="mb-1 font-serif text-4xl font-bold leading-tight text-ink">
                           {cartilha.title}
                         </Dialog.Title>
-                        <p className="mb-6 text-xs uppercase tracking-[0.08em] text-ink-faint">
-                          {cartilha.dateLabel}
-                        </p>
+                        <div className="mb-6">
+                          <p className="text-xs uppercase tracking-[0.08em] text-ink-faint">{cartilha.dateLabel}</p>
+                          {/* Só quando o texto foi de fato republicado (data
+                              do poema e data de publicação no site caem em
+                              dias diferentes) - ver FeaturedCartilha.tsx,
+                              que mostra só a data de publicação e deixa essa
+                              comparação pra cá. */}
+                          {hasDivergentPublishDate(cartilha.dateISO, cartilha.publishedAt) && (
+                            <p className="mt-0.5 text-xs text-ink-faint/70">
+                              publicado em {cartilha.publishedLabel}
+                            </p>
+                          )}
+                        </div>
                       </motion.div>
 
                       {/* O poema se revela estrofe a estrofe, não como um bloco

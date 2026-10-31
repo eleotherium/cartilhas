@@ -1,23 +1,39 @@
 import { Search, X } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
+import { forwardRef, type CSSProperties } from "react"
 import { DURATION } from "@/lib/motion"
 
 interface SearchBarProps {
   value: string
   onChange: (value: string) => void
   placeholder?: string
+  /** Largura explícita (px) - igualada à lista de gêneros ao lado (ver
+   * App.tsx, `useSyncedWidth`). `undefined` = largura natural (mobile,
+   * onde a busca já ocupa 100% via classe). */
+  width?: number
 }
 
-export function SearchBar({ value, onChange, placeholder = "Buscar por título ou palavra do texto" }: SearchBarProps) {
+// Compacta (h-10, ícone 16px) - a versão antiga (h-[72px], ícone 24px)
+// sozinha já ocupava mais de metade da largura da tela numa linha de
+// cabeçalho; ninguém precisa de tanto espaço só pra digitar/ver uma busca.
+export const SearchBar = forwardRef<HTMLDivElement, SearchBarProps>(function SearchBar(
+  { value, onChange, placeholder = "Buscar textos", width },
+  ref,
+) {
+  const style: CSSProperties | undefined = width ? { width } : undefined
   return (
-    <div className="glass flex h-[72px] shrink-0 items-center gap-3 rounded-full px-7 transition-shadow duration-200 focus-within:shadow-[0_0_0_3px_rgb(212_65_7_/_0.3)] sm:flex-1">
-      <Search className="h-6 w-6 shrink-0 text-ink-faint" strokeWidth={1.75} />
+    <div
+      ref={ref}
+      style={style}
+      className="glass flex h-10 shrink-0 items-center gap-2.5 rounded-full px-4 transition-shadow duration-200 focus-within:shadow-[0_0_0_3px_rgb(212_65_7_/_0.3)] max-sm:w-full"
+    >
+      <Search className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={1.75} />
       <input
         type="text"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-full w-full bg-transparent text-base text-ink placeholder:text-ink-faint focus:outline-none"
+        className="h-full w-full min-w-0 bg-transparent text-[13px] text-ink placeholder:text-ink-faint focus:outline-none"
       />
       <AnimatePresence>
         {value.length > 0 && (
@@ -32,10 +48,10 @@ export function SearchBar({ value, onChange, placeholder = "Buscar por título o
             whileTap={{ scale: 0.9 }}
             className="shrink-0 rounded-full p-1 text-ink-faint hover:text-calendula-deep"
           >
-            <X className="h-4 w-4" strokeWidth={1.75} />
+            <X className="h-3.5 w-3.5" strokeWidth={1.75} />
           </motion.button>
         )}
       </AnimatePresence>
     </div>
   )
-}
+})

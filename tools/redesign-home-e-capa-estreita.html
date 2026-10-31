@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cartilhas — Capa Estreita</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#faf7f1; --paper-dim:#f1ece2; --paper-deep:#e7decf;
+    --ink:#231f1a; --ink-soft:#55504a; --ink-faint:#6e6758;
+    --calendula:#d44107; --calendula-bright:#ff8a3d; --calendula-deep:#8f2a05; --calendula-soft:#ffd9b8;
+    --violeta-bright:#8b4fc9; --violeta:#5b2a86; --violeta-deep:#4a1d6e; --violeta-soft:#e7dbf5;
+    --noite:#211a28;
+    --font-sans:"Outfit",ui-sans-serif,system-ui,sans-serif;
+    --font-serif:"Cormorant Garamond",ui-serif,Georgia,serif;
+    --ease:cubic-bezier(.16,1,.3,1);
+    color-scheme: light;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--font-sans); -webkit-font-smoothing:antialiased;}
+  button{font-family:inherit; cursor:pointer;}
+  input{font-family:inherit;}
+
+  .backdrop{position:fixed; inset:0; overflow:hidden; z-index:-1;}
+  .backdrop .base{position:absolute; inset:0; background:var(--paper);}
+  .orb{position:absolute; border-radius:999px; filter:blur(42px); will-change:transform;}
+  .orb-a{top:-20%; left:-14%; width:820px; height:820px; background:radial-gradient(circle at 35% 35%, rgb(255 138 61/.48), rgb(212 65 7/.15) 55%, transparent 72%); animation:drift-a 32s var(--ease) infinite;}
+  .orb-b{top:-8%; right:-18%; width:720px; height:720px; background:radial-gradient(circle at 60% 40%, rgb(139 79 201/.38), rgb(91 42 134/.13) 55%, transparent 70%); animation:drift-b 38s var(--ease) infinite;}
+  .orb-c{bottom:-26%; left:18%; width:880px; height:880px; background:radial-gradient(circle at 50% 50%, rgb(212 65 7/.32), rgb(91 42 134/.09) 60%, transparent 74%); animation:drift-c 26s var(--ease) infinite;}
+  .fade{position:absolute; inset:0; background:linear-gradient(180deg, rgb(250 247 241/0) 0%, rgb(250 247 241/.5) 92%);}
+  @keyframes drift-a{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(18px,-14px) scale(1.05);}}
+  @keyframes drift-b{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-22px,16px) scale(1.03);}}
+  @keyframes drift-c{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(12px,20px) scale(1.06);}}
+  @media (prefers-reduced-motion: reduce){ .orb{animation:none;} }
+
+  .glass-card{
+    position:relative; isolation:isolate;
+    background:linear-gradient(135deg, rgb(255 255 255/.7), rgb(255 255 255/.42)), rgb(255 253 249/.62);
+    border:1px solid rgb(255 255 255/.65);
+    box-shadow:inset 0 1px 0 rgb(255 255 255/.7), inset 0 -1px 0 rgb(255 255 255/.15), 0 12px 40px -8px rgb(90 62 30/.18);
+  }
+  .glass-deep{
+    background:linear-gradient(150deg, rgb(255 255 255/.66), rgb(250 247 241/.38)), rgb(255 255 255/.54);
+    border:1px solid rgb(255 255 255/.72);
+    box-shadow:inset 0 1px 0 rgb(255 255 255/.8), inset 0 -1px 0 rgb(255 255 255/.18), 0 26px 64px -22px rgb(90 62 30/.24);
+  }
+
+  .g-calendula{background:linear-gradient(135deg, var(--calendula-bright) 0%, var(--calendula) 55%, var(--calendula-deep) 100%); color:var(--paper);}
+  .g-violeta{background:linear-gradient(135deg, var(--violeta-bright) 0%, var(--violeta) 55%, var(--noite) 100%); color:var(--paper);}
+  .g-noite{background:linear-gradient(150deg, var(--noite) 0%, var(--violeta-deep) 70%, var(--violeta) 100%); color:var(--paper);}
+  .g-mixed{
+    border:1.5px solid transparent; color:var(--ink);
+    background:linear-gradient(var(--paper),var(--paper)) padding-box,
+      linear-gradient(120deg, var(--calendula) 0%, var(--violeta) 55%, var(--noite) 100%) border-box;
+  }
+
+  .ic{width:16px; height:16px; stroke:currentColor; stroke-width:1.9; fill:none; stroke-linecap:round; stroke-linejoin:round; display:block;}
+
+  .page{max-width:1360px; margin:0 auto; padding:30px 28px 96px;}
+
+  .proto-badge{
+    display:inline-flex; flex-direction:column; margin-top:36px; padding:11px 17px; border-radius:16px;
+    font-size:11.5px; line-height:1.55; max-width:340px;
+  }
+  .proto-badge strong{display:block; font-size:13px; margin-bottom:3px; color:var(--calendula-deep); font-family:var(--font-serif); font-weight:700;}
+  .proto-badge .metric{display:inline-flex; align-items:center; gap:5px; margin-top:7px; padding:3px 9px; border-radius:999px; background:rgb(143 42 5/.08); color:var(--calendula-deep); font-weight:600; font-size:11px;}
+
+  .fold-line{position:absolute; left:0; right:0; border-top:2px dashed rgb(33 26 40/.32); z-index:30; pointer-events:none;}
+  .fold-line span{position:absolute; right:28px; top:-12px; background:var(--noite); color:var(--paper); font-size:10.5px; padding:4px 11px; border-radius:999px; letter-spacing:.02em; white-space:nowrap;}
+
+  /* ===== wordmark com assinatura calibrada (fórmula real do AppHeader.tsx) ===== */
+  /* width/height começam em 0 e são setados de verdade pelo JS (ver
+     positionSignature) com a extensão REAL da assinatura pra direita e pra
+     baixo - ela é position:absolute, escapa da caixa do título dos dois
+     lados. Setar WIDTH/HEIGHT (não margin) é o que faz a composição
+     título+assinatura inteira (não só o texto) ser o que se centraliza em
+     .cover-left-top - um margin assimétrico desloca o centro visual pro
+     lado errado (já aconteceu: a logo "centralizava" mas ficava visualmente
+     deslocada, porque a margem reservada não é conteúdo visível). */
+  /* align-items:flex-start é essencial, não decorativo: sem ele (stretch,
+     o padrão do flex) o <h1> estica pra preencher o height que o JS seta
+     logo abaixo, inflando a MEDIÇÃO da próxima execução (title.offsetHeight
+     deixa de refletir o tamanho real do texto) - um loop que infla a altura
+     a cada resize/fonts.ready até destoar completamente do texto real. */
+  .wordmark{position:relative; display:flex; align-items:flex-start; line-height:1;}
+  .wordmark-title{font-family:var(--font-serif); font-weight:700; font-size:74px; color:var(--calendula-deep); letter-spacing:-.01em; margin:0; line-height:1; white-space:nowrap;}
+  .wordmark-sig{position:absolute; background-color:var(--calendula-deep); opacity:.85; pointer-events:none;
+    -webkit-mask-image:url(assinatura.png); mask-image:url(assinatura.png);
+    -webkit-mask-size:contain; mask-size:contain; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; -webkit-mask-position:center; mask-position:center;
+  }
+
+  /* ===== coluna esquerda: identidade + controles ===== */
+  /* "auto" encolhe a coluna pro tamanho real do conteúdo (logo/busca/gêneros,
+     o que for mais largo) - a coluna direita (1fr) pega exatamente o que
+     sobra, sem precisar adivinhar uma fração fixa. */
+  .cover-grid{display:grid; grid-template-columns:auto 1fr; gap:34px; margin:4px 0 32px; align-items:stretch;}
+  .cover-left{display:flex; flex-direction:column; align-items:flex-start; width:fit-content; min-width:0;}
+
+  /* flex:1 consome todo o espaço que sobra acima do grupo busca+gêneros, e
+     centraliza a logo NO MEIO desse espaço (não grudada no topo) - ou seja,
+     exatamente na metade da distância entre o topo da coluna e a barra de
+     busca, dos dois lados. */
+  .cover-left-top{display:flex; flex:1; align-items:center; justify-content:center; min-height:0; width:100%;}
+
+  .cover-left-bottom{display:flex; flex-direction:column; gap:18px; width:100%;}
+
+  /* Largura "de verdade" só até o JS medir o conjunto de gêneros e igualar
+     aqui (ver syncSearchWidth) - este valor é só o estado inicial antes da
+     medição, pra não nascer com largura 0. */
+  .search-compact{
+    width:230px; flex-shrink:0; display:flex; align-items:center; gap:9px; height:40px;
+    border-radius:999px; padding:0 15px; background:rgb(255 255 255/.5); border:1px solid rgb(255 255 255/.7);
+  }
+  .search-compact .ic{color:var(--ink-faint); flex-shrink:0;}
+  .search-compact input{flex:1; min-width:0; border:none; background:transparent; outline:none; font-size:13px; color:var(--ink);}
+  .search-compact input::placeholder{color:var(--ink-faint);}
+
+  .genre-tabs{display:flex; align-items:center; gap:22px; overflow-x:auto; scrollbar-width:none;}
+  .genre-tabs::-webkit-scrollbar{display:none;}
+  .tab{background:none; border:none; padding:4px 0; font-size:13px; font-weight:500; color:var(--ink-faint); white-space:nowrap; position:relative; flex-shrink:0;}
+  .tab .count{font-size:10px; color:inherit; opacity:.65; margin-left:4px; font-variant-numeric:tabular-nums;}
+  .tab.active{color:var(--calendula-deep); font-weight:600;}
+  .tab.active::after{content:""; position:absolute; left:0; right:0; bottom:-3px; height:2px; border-radius:2px; background:var(--calendula-deep);}
+  .tab:not(.active):hover{color:var(--ink);}
+
+  /* Divisor fino antes do ícone de ordenar - marca que ele é uma AÇÃO, não
+     mais um gênero, mesmo vivendo na mesma linha/lista. */
+  .genre-divider{width:1px; height:16px; background:rgb(35 31 26/.15); flex-shrink:0;}
+  .btn-ordenar{
+    flex-shrink:0; width:28px; height:28px; border-radius:999px; border:none;
+    background:transparent; display:grid; place-items:center; color:var(--ink-faint);
+    transition:background .2s var(--ease), color .2s var(--ease);
+  }
+  .btn-ordenar:hover{background:var(--paper-deep); color:var(--calendula-deep);}
+
+  /* ===== coluna direita: manchete como citação editorial, sem wrapper ===== */
+  /* Pedido explícito: NENHUM card/fundo atrás, nem suave nem com gradiente -
+     o texto fica direto sobre o fundo da própria página (os orbs por trás
+     continuam visíveis). A "estrutura de destaque" vira uma régua vertical
+     em degradê (mesma dupla calêndula/violeta), como uma citação de
+     revista - delimita e identifica como bloco independente sem nunca virar
+     uma caixa fechada. */
+  .cover-right{
+    position:relative; display:flex; flex-direction:column; gap:11px; text-align:left;
+    padding:2px 0 2px 28px; min-width:0;
+  }
+  .cover-right::before{
+    content:""; position:absolute; left:0; top:3px; bottom:3px; width:3px; border-radius:3px;
+    background:linear-gradient(180deg, var(--calendula) 0%, var(--violeta) 100%);
+    transition:background .3s var(--ease);
+  }
+  .cover-right:has(.cr-link:hover)::before{background:linear-gradient(180deg, var(--calendula-bright) 0%, var(--violeta-bright) 100%);}
+
+  /* Sem fundo/card pra "conter" a linha, espalhar com space-between numa
+     coluna larga jogava o badge longe do resto (lia como solto, sem
+     contexto) - gap fixo mantém os dois sempre próximos, grudados, não
+     importa a largura da coluna. */
+  .cr-top-row{display:flex; align-items:center; gap:14px;}
+  .cr-eyebrow{display:flex; align-items:center; gap:7px; font-size:10.5px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); flex-shrink:0;}
+  .cr-eyebrow .dot{width:5px; height:5px; border-radius:999px; background:var(--calendula-deep); animation:pulse 1.8s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .cr-badge{
+    display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; flex-shrink:0;
+    font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.08em; box-shadow:0 2px 10px -2px rgb(0 0 0/.22);
+  }
+  .cr-badge .ic{width:11px; height:11px;}
+  .cr-title{font-family:var(--font-serif); font-style:italic; font-weight:600; font-size:26px; line-height:1.18; margin:0; color:var(--ink);}
+  .cr-excerpt{font-size:14px; color:var(--ink-soft); line-height:1.52; margin:0; white-space:pre-line;}
+
+  /* margin-top:auto empurra essa linha pro fundo do bloco, sempre - "ler o
+     texto inteiro" e "assinar" ficam na mesma altura, não importa quanto
+     texto o excerto tiver acima. gap fixo (não space-between) mantém os
+     dois próximos um do outro - numa coluna larga, space-between jogava o
+     botão pra ponta oposta, longe do link, lendo como solto/sem contexto. */
+  .cr-bottom-row{display:flex; align-items:center; gap:22px; margin-top:auto; padding-top:4px; flex-wrap:wrap;}
+  .cr-link{
+    font-size:12.5px; font-weight:600; color:var(--calendula-deep); display:inline-flex; align-items:center; gap:4px;
+    border:none; background:none; padding:0; flex-shrink:0;
+  }
+  .cr-link:hover{text-decoration:underline;}
+  .cr-link .ic{transition:transform .2s var(--ease);}
+  .cr-link:hover .ic{transform:translateX(3px);}
+
+  /* Texto longo de propósito (pedido explícito) - por isso não é mais uma
+     pílula rígida de altura fixa: cresce em 2 linhas quando precisar, com
+     padding vertical em vez de height fixo. */
+  .btn-assinar{
+    padding:10px 22px; border-radius:999px; border:none; text-align:center; line-height:1.25; max-width:280px;
+    background:var(--calendula-soft); color:var(--calendula-deep); font-size:12px; font-weight:600;
+    transition:transform .2s var(--ease);
+  }
+  .btn-assinar:hover{transform:scale(1.03);}
+
+  /* ===== cabeçalho de seção ===== */
+  .section-head{display:flex; align-items:baseline; justify-content:space-between; margin:0 0 18px;}
+  .section-head h2{font-family:var(--font-serif); font-size:20px; font-weight:600; color:var(--ink); margin:0;}
+  .section-head .count{font-size:12px; color:var(--ink-faint);}
+
+  /* ===== grade ===== */
+  .grid{display:grid; grid-template-columns:repeat(4, 1fr); gap:22px;}
+  .card{
+    border-radius:26px; padding:22px; text-align:left; border:none; display:flex; flex-direction:column;
+    transition:transform .25s var(--ease), box-shadow .25s var(--ease);
+  }
+  .card:hover{transform:translateY(-4px); box-shadow:0 24px 48px -20px rgb(212 65 7/.35), 0 12px 60px -24px rgb(91 42 134/.3);}
+  .badge{
+    display:inline-flex; align-items:center; gap:6px; align-self:flex-start; margin-bottom:16px;
+    padding:5px 12px; border-radius:999px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.08em;
+    box-shadow:0 2px 10px -2px rgb(0 0 0/.22);
+  }
+  .badge .ic{width:12px; height:12px;}
+  .card h3{font-family:var(--font-serif); font-size:24px; font-weight:700; line-height:1.18; margin:0 0 8px; color:var(--ink);}
+  .card p{font-size:14px; line-height:1.55; color:var(--ink-soft); margin:0 0 16px; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden;}
+  .card-foot{display:flex; align-items:center; justify-content:space-between; font-size:11.5px; color:var(--ink-faint); margin-top:auto; padding-top:12px;}
+
+  /* ===== modal de assinatura ===== */
+  dialog.modal-assinar{border:none; border-radius:28px; padding:0; max-width:380px; width:88vw; background:transparent;}
+  dialog.modal-assinar::backdrop{background:rgb(35 31 26/.45); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);}
+  .modal-inner{position:relative; padding:34px 30px 30px; border-radius:28px;}
+  .modal-close{position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:999px; border:none; background:rgb(35 31 26/.06); display:grid; place-items:center; color:var(--ink-soft);}
+  .modal-close:hover{background:rgb(35 31 26/.1); color:var(--calendula-deep);}
+  .modal-icon{width:44px; height:44px; border-radius:999px; display:grid; place-items:center; margin-bottom:16px;}
+  .modal-inner h2{font-family:var(--font-serif); font-size:24px; font-weight:700; margin:0 0 8px; color:var(--ink);}
+  .modal-inner p{font-size:13.5px; color:var(--ink-soft); line-height:1.5; margin:0 0 20px;}
+  .modal-input-row{display:flex; flex-direction:column; gap:10px;}
+  .modal-input-row input{height:44px; border-radius:14px; border:1px solid rgb(35 31 26/.14); padding:0 16px; font-size:14px; background:#fff; outline:none; color:var(--ink);}
+  .modal-input-row input:focus{border-color:var(--calendula-deep);}
+  .modal-submit{height:44px; border-radius:14px; border:none; background:var(--calendula-deep); color:var(--paper); font-size:14px; font-weight:600;}
+  .modal-note{margin:14px 0 0; font-size:11px; color:var(--ink-faint); text-align:center;}
+
+  @media (max-width:1180px){ .grid{grid-template-columns:repeat(3,1fr);} }
+  @media (max-width:980px){
+    .cover-grid{grid-template-columns:1fr; gap:30px;}
+    .cover-left{width:auto;}
+    .cover-left-top{flex:none; padding:10px 0;}
+    .search-compact{width:100%;}
+  }
+  @media (max-width:860px){ .grid{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:620px){
+    .grid{grid-template-columns:1fr;}
+    .page{padding:20px 14px 72px;}
+    .wordmark-title{font-size:56px;}
+    .cover-right{padding-left:20px;}
+    .cr-title{font-size:22px;}
+    .cr-bottom-row{flex-direction:column; align-items:stretch; gap:12px;}
+    .btn-assinar{max-width:none;}
+  }
+</style>
+</head>
+<body>
+  <div class="backdrop">
+    <div class="base"></div>
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+    <div class="fade"></div>
+  </div>
+
+  <div class="page">
+    <div data-hero-end>
+      <div class="cover-grid">
+        <div class="cover-left">
+          <div class="cover-left-top">
+            <div class="wordmark">
+              <h1 class="wordmark-title" id="wmTitle">Cartilhas</h1>
+              <span class="wordmark-sig" id="wmSig" aria-hidden></span>
+            </div>
+          </div>
+
+          <div class="cover-left-bottom">
+            <div class="search-compact" id="searchCompact">
+              <svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" placeholder="Buscar textos" />
+            </div>
+
+            <nav class="genre-tabs" id="genreTabs">
+              <button class="tab active" type="button">Todos<span class="count">7</span></button>
+              <button class="tab" type="button">Poemas<span class="count">4</span></button>
+              <button class="tab" type="button">Crônicas<span class="count">1</span></button>
+              <button class="tab" type="button">Contos<span class="count">1</span></button>
+              <button class="tab" type="button">Ensaios<span class="count">1</span></button>
+              <span class="genre-divider"></span>
+              <button class="btn-ordenar" aria-label="Ordenar" title="Ordenar">
+                <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              </button>
+            </nav>
+          </div>
+        </div>
+
+        <div class="cover-right">
+          <div class="cr-top-row">
+            <span class="cr-eyebrow"><span class="dot"></span>mais recente · 6 out</span>
+            <span class="cr-badge g-calendula">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+              Poema
+            </span>
+          </div>
+          <h2 class="cr-title">"Primavera"</h2>
+          <p class="cr-excerpt">Contemplar a realidade por vezes me trás a certeza de um mundo monótono
+Governado pela vontade, pela intenção
+Mas que gostoso é ser encontrado pelo acaso
+Tomado pelo braço
+Chacoalhado a ponto de perder o senso de direção</p>
+          <div class="cr-bottom-row">
+            <button class="cr-link" type="button">
+              ler o texto inteiro
+              <svg class="ic" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+            <button class="btn-assinar" type="button" onclick="document.getElementById('dlgAssinar').showModal()">Inscreva-se gratuitamente para receber novas publicações</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fold-line" style="top:860px"><span>dobra ≈ 860px · notebook 13″</span></div>
+
+    <div class="section-head">
+      <h2>Outubro 2026</h2>
+      <span class="count">7 textos</span>
+    </div>
+
+    <div class="grid">
+      <button class="card glass-card" type="button">
+        <span class="badge g-mixed">
+          <svg class="ic" viewBox="0 0 24 24"><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><circle cx="11" cy="11" r="2"/></svg>
+          Ensaio
+        </span>
+        <h3>Eu não sou um ativista</h3>
+        <p>Eu nunca participei oficialmente de nenhum grupo ativista ou sequer de uma roda de conversa a respeito. Sigo pessoas que o fazem.</p>
+        <span class="card-foot"><span>6 mar</span><span>ler →</span></span>
+      </button>
+
+      <button class="card glass-card" type="button">
+        <span class="badge g-noite">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          Conto
+        </span>
+        <h3>Os Detalhes da Rotina I</h3>
+        <p>Sentei a mesa e enquanto pegavam os cardápios pra escolher o que comer, observei uma moça segurando uma bicicleta, apoiada no muro do restaurante.</p>
+        <span class="card-foot"><span>26 dez</span><span>ler →</span></span>
+      </button>
+
+      <button class="card glass-card" type="button">
+        <span class="badge g-violeta">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/></svg>
+          Crônica
+        </span>
+        <h3>Meu mundo é grande, talvez grande demais</h3>
+        <p>Sempre admirei aqueles que sabem o seu caminho. Desde pequeno me admiro com a ideia de que algumas pessoas sempre souberam o que queriam fazer de suas vidas.</p>
+        <span class="card-foot"><span>16 jan</span><span>ler →</span></span>
+      </button>
+
+      <button class="card glass-card" type="button">
+        <span class="badge g-calendula">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+          Poema
+        </span>
+        <h3>Te alcançar</h3>
+        <p>Um aperto no peito tem jeito de ser a saudade me visitando de novo. Já é a quarta vez na semana, ou seria a sexta?</p>
+        <span class="card-foot"><span>6 mar</span><span>ler →</span></span>
+      </button>
+
+      <button class="card glass-card" type="button">
+        <span class="badge g-calendula">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+          Poema
+        </span>
+        <h3>O ontem, o hoje, e o acreditar</h3>
+        <p>Eu já acreditei num amor de potência. Já acreditei em dias guiados pela vontade de estar, motivados por qualquer mínimo contato.</p>
+        <span class="card-foot"><span>7 fev</span><span>ler →</span></span>
+      </button>
+
+      <button class="card glass-card" type="button">
+        <span class="badge g-calendula">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+          Poema
+        </span>
+        <h3>Conversas</h3>
+        <p>Antes de tudo, as conversas. Pois pelas conversas mudamos tanto e por elas somos o que somos. Pois pelas conversas nos conhecemos e reconhecemos.</p>
+        <span class="card-foot"><span>24 nov</span><span>ler →</span></span>
+      </button>
+    </div>
+
+    <div class="proto-badge glass-card">
+      <strong>Proposta E — Capa Estreita</strong>
+      Logo centralizada na metade do espaço entre o topo e a busca (não mais grudada em cima). O bloco de destaque trocou o card/fundo por uma régua em degradê, como uma citação editorial - o texto fica direto sobre o fundo da página, sem nenhum wrapper atrás.
+      <span class="metric" id="heroMetric">medindo…</span>
+    </div>
+  </div>
+
+  <dialog id="dlgAssinar" class="modal-assinar">
+    <div class="modal-inner glass-deep">
+      <button class="modal-close" aria-label="Fechar" onclick="document.getElementById('dlgAssinar').close()">
+        <svg class="ic" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <span class="modal-icon g-calendula">
+        <svg class="ic" viewBox="0 0 24 24" style="width:18px;height:18px;"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>
+      </span>
+      <h2>Novidades por email</h2>
+      <p>Um email só quando sai texto novo — poema, crônica, conto ou ensaio. Sem spam, sem newsletter semanal.</p>
+      <form method="dialog" class="modal-input-row">
+        <input type="email" placeholder="seu@email.com" required />
+        <button type="submit" class="modal-submit">Assinar</button>
+      </form>
+      <p class="modal-note">Cancele quando quiser, com um clique.</p>
+    </div>
+  </dialog>
+
+  <script>
+    // Calibração real do wordmark, reaproveitada de src/components/AppHeader.tsx
+    // e tools/og-image.html (o mesmo cálculo que já gera public/og-image.jpg) -
+    // interpolação completa entre os dois pontos de referência do app (mobile
+    // 48px / desktop 72px), não só os valores de um extremo: com a logo 85%
+    // maior aqui (74px), o título já passa do ponto "desktop" original, então
+    // precisa extrapolar/clampar pra esse lado, não pro "mobile".
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function positionSignature() {
+      var wordmark = document.querySelector('.wordmark');
+      var title = document.getElementById('wmTitle');
+      var sig = document.getElementById('wmSig');
+      if (!wordmark || !title || !sig) return;
+      var SIGNATURE_ASPECT = 1191 / 878;
+      var mobile = { titleHeight: 48, dxFrac: -53.6 / 48, dyFrac: -39.9 / 48, scale: 77.3 / 48, rotateDeg: -6.9 };
+      var desktop = { titleHeight: 72, dxFrac: -78.5 / 72, dyFrac: -60.5 / 72, scale: 115.9 / 72, rotateDeg: 0 };
+      var titleHeight = title.getBoundingClientRect().height;
+      var t = Math.max(0, Math.min(1, (titleHeight - mobile.titleHeight) / (desktop.titleHeight - mobile.titleHeight)));
+      var dxFrac = lerp(mobile.dxFrac, desktop.dxFrac, t);
+      var dyFrac = lerp(mobile.dyFrac, desktop.dyFrac, t);
+      var scale = lerp(mobile.scale, desktop.scale, t);
+      var rotateDeg = lerp(mobile.rotateDeg, desktop.rotateDeg, t);
+      var height = titleHeight * scale;
+      var width = height * SIGNATURE_ASPECT;
+      var sigLeft = title.offsetWidth + dxFrac * titleHeight;
+      var sigTop = title.offsetHeight + dyFrac * titleHeight;
+      sig.style.width = width + 'px';
+      sig.style.height = height + 'px';
+      sig.style.left = sigLeft + 'px';
+      sig.style.top = sigTop + 'px';
+      sig.style.transform = 'rotate(' + rotateDeg + 'deg)';
+
+      // A assinatura é position:absolute - escapa da caixa do título pra
+      // direita e pra baixo (nunca pra cima, sigTop é sempre >=0 nessa
+      // calibração). Setar WIDTH/HEIGHT no wordmark (não margin) faz a
+      // composição INTEIRA (texto+assinatura, não só o texto) ser o que
+      // .cover-left-top centraliza nos dois eixos - um margin assimétrico já
+      // deslocou o centro visual pro lado errado uma vez (reservava espaço
+      // sem ser conteúdo visível, então "centralizado" via margin não batia
+      // com o centro real da composição).
+      var overflowRight = Math.max(0, (sigLeft + width) - title.offsetWidth);
+      var overflowBottom = Math.max(0, (sigTop + height) - title.offsetHeight);
+      wordmark.style.width = (title.offsetWidth + overflowRight) + 'px';
+      wordmark.style.height = (title.offsetHeight + overflowBottom) + 'px';
+    }
+
+    // Busca com a mesma largura do conjunto de gêneros (Todos…Ensaios + ícone
+    // de ordenar) - medida de verdade via scrollWidth, não chutada, porque
+    // depende de fonte/contagens reais. Só no layout de 2 colunas (>980px);
+    // abaixo disso a busca já vira width:100% via CSS (ver media query).
+    function syncSearchWidth() {
+      var tabs = document.getElementById('genreTabs');
+      var search = document.getElementById('searchCompact');
+      if (!tabs || !search) return;
+      if (window.innerWidth <= 980) { search.style.width = ''; return; }
+      search.style.width = tabs.scrollWidth + 'px';
+    }
+
+    function layout() {
+      positionSignature();
+      syncSearchWidth();
+    }
+    document.fonts.ready.then(layout);
+    window.addEventListener('resize', layout);
+    layout();
+
+    window.addEventListener('load', () => {
+      const hero = document.querySelector('[data-hero-end]');
+      const metric = document.getElementById('heroMetric');
+      if (hero && metric) {
+        const h = Math.round(hero.getBoundingClientRect().bottom + window.scrollY);
+        metric.textContent = `topo → fim da capa: ${h}px`;
+      }
+    });
+  </script>
+</body>
+</html>
