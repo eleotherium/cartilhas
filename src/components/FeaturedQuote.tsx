@@ -5,9 +5,18 @@ import type { Cartilha } from "@/types/cartilha"
 
 interface FeaturedQuoteProps {
   cartilha: Cartilha
+  /** Gap (px) entre a borda esquerda do bloco e a régua, e entre a régua e o
+   * texto - os dois iguais, de propósito (ver App.tsx, `useLeftOffset`: 70%
+   * do gap real até a busca, não um valor fixo chutado). `undefined` =
+   * medição ainda não disponível (primeiro render), usa o valor antigo
+   * como fallback pra não gerar um salto de layout visível. */
+  barGap?: number
   onOpen: (cartilha: Cartilha) => void
   onSubscribeClick: () => void
 }
+
+const BAR_WIDTH = 3
+const FALLBACK_GAP = 25
 
 // Destaque do texto mais recente, como uma citação editorial - sem card/
 // fundo atrás (nem sutil, nem com gradiente): só uma régua vertical em
@@ -16,14 +25,19 @@ interface FeaturedQuoteProps {
 // no fim do bloco (`mt-auto` empurra pro fundo independente do tamanho do
 // excerto) - têm que ficar perto um do outro, não espalhados pelas pontas
 // da coluna (já aconteceu, lia como solto/sem contexto).
-export function FeaturedQuote({ cartilha, onOpen, onSubscribeClick }: FeaturedQuoteProps) {
+export function FeaturedQuote({ cartilha, barGap, onOpen, onSubscribeClick }: FeaturedQuoteProps) {
   const meta = CATEGORY_META[cartilha.category]
   const Icon = meta.icon
   const excerpt = leadLines(cartilha.body, 5)
+  const gap = barGap ?? FALLBACK_GAP
 
   return (
-    <div className="relative flex h-full flex-col gap-3 py-0.5 pl-7">
-      <span aria-hidden className="absolute inset-y-1 left-0 w-[3px] rounded-full bg-gradient-to-b from-calendula to-violeta" />
+    <div className="relative flex h-full flex-col gap-3 py-0.5" style={{ paddingLeft: gap * 2 + BAR_WIDTH }}>
+      <span
+        aria-hidden
+        className="absolute inset-y-1 w-[3px] rounded-full bg-gradient-to-b from-calendula to-violeta"
+        style={{ left: gap }}
+      />
 
       {/* flex-wrap: o eyebrow carrega a data por extenso ("06 de outubro de
           2026"), bem mais longa que o "6 out" do protótipo - numa coluna

@@ -41,6 +41,35 @@ function useSyncedWidth(sourceRef: React.RefObject<HTMLElement | null>) {
   return width
 }
 
+// Mede a distância real entre a borda esquerda da viewport e o nó
+// referenciado - usada pra calcular o gap da régua do destaque como
+// proporção real do gap até a busca (pedido explícito: 70% desse valor),
+// não um px fixo chutado (o gap até a busca varia com a largura da tela,
+// por causa da margem automática do container centralizado `max-w-`).
+// Observa o <body>, não só o próprio nó: a posição pode mudar por reflow
+// de layout (ex: alternar `showFeatured`) sem o nó em si mudar de
+// tamanho - um ResizeObserver só nele não pegaria isso.
+function useLeftOffset(sourceRef: React.RefObject<HTMLElement | null>) {
+  const [left, setLeft] = useState<number | undefined>(undefined)
+  useLayoutEffect(() => {
+    function measure() {
+      if (!sourceRef.current) return
+      setLeft(sourceRef.current.getBoundingClientRect().left)
+    }
+    measure()
+    document.fonts?.ready.then(measure)
+    window.addEventListener("resize", measure)
+    const observer = new ResizeObserver(measure)
+    observer.observe(document.body)
+    if (sourceRef.current) observer.observe(sourceRef.current)
+    return () => {
+      window.removeEventListener("resize", measure)
+      observer.disconnect()
+    }
+  }, [sourceRef])
+  return left
+}
+
 function App() {
   // Antes era um `import` estático de JSON gerado em build-time; agora os
   // textos vivem no R2, editáveis pelo /admin, então precisam ser buscados em
@@ -136,6 +165,13 @@ function App() {
   // verdade (ver `useSyncedWidth`), não chutada.
   const genreTabsRef = useRef<HTMLElement>(null)
   const searchWidth = useSyncedWidth(genreTabsRef)
+
+  // Gap da régua do destaque (ver FeaturedQuote) = 70% do gap real entre a
+  // borda esquerda da tela e a busca (pedido explícito do usuário) - medido
+  // de verdade (ver `useLeftOffset`), não um px fixo.
+  const searchBarRef = useRef<HTMLDivElement>(null)
+  const searchLeftOffset = useLeftOffset(searchBarRef)
+  const featuredBarGap = searchLeftOffset === undefined ? undefined : searchLeftOffset * 0.7
 
   const searched = useMemo(() => {
     const all = cartilhas ?? []
@@ -271,7 +307,7 @@ function App() {
               <AppHeader />
             </div>
             <div className="flex flex-col gap-4">
-              <SearchBar value={query} onChange={setQuery} width={searchWidth} />
+              <SearchBar ref={searchBarRef} value={query} onChange={setQuery} width={searchWidth} />
               <GenreTabsRow
                 ref={genreTabsRef}
                 selected={category}
@@ -287,7 +323,12 @@ function App() {
           </div>
 
           {showFeatured && heroCartilha && (
-            <FeaturedQuote cartilha={heroCartilha} onOpen={(c) => setActiveId(c.id)} onSubscribeClick={() => setSubscribeOpen(true)} />
+            <FeaturedQuote
+              cartilha={heroCartilha}
+              barGap={featuredBarGap}
+              onOpen={(c) => setActiveId(c.id)}
+              onSubscribeClick={() => setSubscribeOpen(true)}
+            />
           )}
         </div>
 
