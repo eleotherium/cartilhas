@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cartilhas — decoração do destaque v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#faf7f1; --paper-dim:#f1ece2; --paper-deep:#e7decf;
+    --ink:#231f1a; --ink-soft:#55504a; --ink-faint:#6e6758;
+    --calendula:#d44107; --calendula-bright:#ff8a3d; --calendula-deep:#8f2a05; --calendula-soft:#ffd9b8;
+    --violeta-bright:#8b4fc9; --violeta:#5b2a86; --violeta-deep:#4a1d6e; --violeta-soft:#e7dbf5;
+    --noite:#211a28;
+    --font-sans:"Outfit",ui-sans-serif,system-ui,sans-serif;
+    --font-serif:"Cormorant Garamond",ui-serif,Georgia,serif;
+    --ease:cubic-bezier(.16,1,.3,1);
+    color-scheme: light;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--font-sans); -webkit-font-smoothing:antialiased;}
+  button{font-family:inherit; cursor:pointer;}
+
+  .ic{width:16px; height:16px; stroke:currentColor; stroke-width:1.9; fill:none; stroke-linecap:round; stroke-linejoin:round; display:block;}
+
+  .intro{max-width:760px; margin:0 auto; padding:48px 28px 8px;}
+  .intro h1{font-family:var(--font-serif); font-size:30px; margin:0 0 10px;}
+  .intro p{font-size:14px; color:var(--ink-soft); line-height:1.6; margin:0;}
+
+  .proposta{position:relative; margin:56px 0; overflow:hidden;}
+  .proposta-label{max-width:1360px; margin:0 auto; padding:0 28px 18px;}
+  .proposta-label .tag{display:inline-block; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--calendula-deep); background:rgb(212 65 7/.08); padding:4px 11px; border-radius:999px; margin-bottom:8px;}
+  .proposta-label h2{font-family:var(--font-serif); font-size:21px; font-weight:600; margin:0 0 4px;}
+  .proposta-label p{font-size:13px; color:var(--ink-soft); margin:0; max-width:680px; line-height:1.5;}
+
+  /* ===== destaque base (igual nos 2 modelos, só a decoração muda) ===== */
+  .stage{position:relative; background:var(--paper-dim); padding:48px 0;}
+  .cover-right{
+    position:relative; display:flex; flex-direction:column; gap:11px; text-align:left;
+    max-width:1360px; margin:0 auto; padding:26px 28px 26px 56px; min-width:0;
+  }
+  .cover-right::before{
+    content:""; position:absolute; left:28px; top:3px; bottom:3px; width:3px; border-radius:3px; z-index:2;
+    background:linear-gradient(180deg, var(--calendula) 0%, var(--violeta) 100%);
+  }
+  .cr-top-row{display:flex; align-items:center; gap:14px; position:relative; z-index:2;}
+  .cr-eyebrow{display:flex; align-items:center; gap:7px; font-size:10.5px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); flex-shrink:0;}
+  .cr-eyebrow .dot{width:5px; height:5px; border-radius:999px; background:var(--calendula-deep); animation:pulse 1.8s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .cr-badge{
+    display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; flex-shrink:0;
+    font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.08em; box-shadow:0 2px 10px -2px rgb(0 0 0/.22);
+    background:linear-gradient(135deg, var(--calendula-bright) 0%, var(--calendula) 55%, var(--calendula-deep) 100%); color:var(--paper);
+  }
+  .cr-badge .ic{width:11px; height:11px;}
+  .cr-title{font-family:var(--font-serif); font-style:italic; font-weight:600; font-size:26px; line-height:1.18; margin:0; color:var(--ink); position:relative; z-index:2;}
+  .cr-excerpt{font-size:14px; color:var(--ink-soft); line-height:1.52; margin:0; white-space:pre-line; position:relative; z-index:2;}
+  .cr-bottom-row{display:flex; align-items:center; gap:22px; margin-top:auto; padding-top:4px; flex-wrap:wrap; position:relative; z-index:2;}
+  .cr-link{font-size:12.5px; font-weight:600; color:var(--calendula-deep); display:inline-flex; align-items:center; gap:4px; border:none; background:none; padding:0; flex-shrink:0;}
+  .cr-link .ic{transition:transform .2s var(--ease);}
+  .cr-link:hover .ic{transform:translateX(3px);}
+  .btn-assinar{
+    padding:10px 22px; border-radius:999px; border:none; text-align:center; line-height:1.25;
+    background:var(--calendula-soft); color:var(--calendula-deep); font-size:12px; font-weight:600;
+    transition:transform .2s var(--ease); white-space:nowrap;
+  }
+  .btn-assinar:hover{transform:scale(1.03);}
+
+  .rule-tag{position:absolute; top:0; right:28px; transform:translateY(-50%); display:flex; align-items:center; gap:6px; background:var(--paper-dim); padding:2px 0 2px 14px; font-size:10px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--calendula-deep); z-index:3;}
+  .rule-tag::before{content:""; width:5px; height:5px; border-radius:999px; background:var(--calendula-deep);}
+
+  /* As duas linhas usam a cor REAL da barra em cada altura (não um
+     gradiente inventado calêndula→violeta próprio): a barra é
+     `linear-gradient(180deg, calendula 0%, violeta 100%)` - a régua de
+     CIMA está na altura do topo da barra (calêndula), a de BAIXO na
+     altura da base (violeta). Cada uma dissolve pra transparente indo
+     pra direita, finas (1px) e sutis, igual a referência aprovada antes
+     (a primeira tentativa errou tanto a cor quanto a espessura/força). */
+  .rule-top, .rule-bottom{position:absolute; left:31px; right:0; height:1px; z-index:1;}
+  .rule-top{top:0; background:linear-gradient(to left, var(--calendula) 0%, transparent 82%); opacity:.6;}
+  .rule-bottom{bottom:0; background:linear-gradient(to left, var(--violeta) 0%, transparent 82%); opacity:.6;}
+
+  /* ===================================================================
+     MODELO A — "extensão de pixel": o preenchimento entre as réguas usa
+     o MESMO gradiente VERTICAL da barra (não um horizontal inventado à
+     parte) - por isso a cor bate exatamente com a barra em qualquer
+     altura do bloco. A mask controla só a opacidade/alcance horizontal
+     (forte colada na barra, com alguma presença até a borda), nunca a
+     cor em si. */
+  .ma .cover-right::after{
+    content:""; position:absolute; top:3px; bottom:3px; left:31px; right:0; z-index:0;
+    background:linear-gradient(180deg, var(--calendula) 0%, var(--violeta) 100%);
+    -webkit-mask-image:linear-gradient(90deg, rgb(0 0 0/.22) 0%, rgb(0 0 0/.09) 55%, rgb(0 0 0/.045) 100%);
+    mask-image:linear-gradient(90deg, rgb(0 0 0/.22) 0%, rgb(0 0 0/.09) 55%, rgb(0 0 0/.045) 100%);
+  }
+
+  /* ===================================================================
+     MODELO B — sem preenchimento de área; só as réguas (acima) carregam
+     a cor, com um pouco mais de presença que no Modelo A (opacity maior)
+     já que aqui elas são o único elemento de cor. */
+  .mb .rule-top, .mb .rule-bottom{opacity:.85;}
+
+  .credits{max-width:1360px; margin:0 auto; padding:0 28px 80px; font-size:12px; color:var(--ink-faint);}
+</style>
+</head>
+<body>
+
+  <div class="intro">
+    <h1>Decoração do destaque — v2</h1>
+    <p>Mesma base (réguas finas + tag "nova edição"), agora com a paleta atmosférica calêndula→violeta funcionando como se fosse a própria barra vertical se estendendo pra direita. Duas variações de quanta "massa" de cor isso ganha.</p>
+  </div>
+
+  <!-- ===== MODELO A ===== -->
+  <div class="proposta ma">
+    <div class="proposta-label">
+      <span class="tag">Modelo A</span>
+      <h2>Preenchimento entre as réguas</h2>
+      <p>A cor ocupa toda a faixa entre as duas linhas (não só as linhas) - um bloco de luz calêndula→violeta que começa colado na barra vertical e se espalha até a borda da tela, sempre com alguma presença, nunca sumindo de vez.</p>
+    </div>
+    <div class="stage">
+      <div class="cover-right">
+        <span class="rule-top"></span>
+        <span class="rule-bottom"></span>
+        <span class="rule-tag">Nova edição</span>
+        <div class="cr-top-row">
+          <span class="cr-eyebrow"><span class="dot"></span>mais recente · 6 out</span>
+          <span class="cr-badge">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+            Poema
+          </span>
+        </div>
+        <h2 class="cr-title">"Primavera"</h2>
+        <p class="cr-excerpt">Contemplar a realidade por vezes me trás a certeza de um mundo monótono
+Governado pela vontade, pela intenção
+Mas que gostoso é ser encontrado pelo acaso</p>
+        <div class="cr-bottom-row">
+          <button class="cr-link" type="button">ler o texto inteiro<svg class="ic" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+          <button class="btn-assinar" type="button">Inscreva-se gratuitamente para receber novas publicações</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MODELO B ===== -->
+  <div class="proposta mb">
+    <div class="proposta-label">
+      <span class="tag">Modelo B</span>
+      <h2>Só as réguas coloridas</h2>
+      <p>Sem preenchimento de fundo - as duas linhas em si ganham espessura (2px) e o degradê, como a barra vertical "esticada" na horizontal. O miolo entre elas fica limpo, texto direto sobre o papel.</p>
+    </div>
+    <div class="stage">
+      <div class="cover-right">
+        <span class="rule-top"></span>
+        <span class="rule-bottom"></span>
+        <span class="rule-tag">Nova edição</span>
+        <div class="cr-top-row">
+          <span class="cr-eyebrow"><span class="dot"></span>mais recente · 6 out</span>
+          <span class="cr-badge">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+            Poema
+          </span>
+        </div>
+        <h2 class="cr-title">"Primavera"</h2>
+        <p class="cr-excerpt">Contemplar a realidade por vezes me trás a certeza de um mundo monótono
+Governado pela vontade, pela intenção
+Mas que gostoso é ser encontrado pelo acaso</p>
+        <div class="cr-bottom-row">
+          <button class="cr-link" type="button">ler o texto inteiro<svg class="ic" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+          <button class="btn-assinar" type="button">Inscreva-se gratuitamente para receber novas publicações</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="credits">Protótipo de comparação - nenhum dos 2 modelos está implementado no app real ainda.</div>
+
+</body>
+</html>
