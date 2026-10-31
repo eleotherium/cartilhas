@@ -65,7 +65,7 @@ export function FeaturedQuote({ cartilha, barGap, onOpen, onSubscribeClick }: Fe
   const rightViewportGap = useRightViewportGap(rootRef)
 
   return (
-    <div ref={rootRef} className="relative flex h-full flex-col gap-3 pb-2 pt-5" style={{ paddingLeft: leftGap + BAR_WIDTH + rightGap }}>
+    <div ref={rootRef} className="relative flex h-full flex-col gap-3 pb-3 pt-6" style={{ paddingLeft: leftGap + BAR_WIDTH + rightGap }}>
       {/* Réguas finas no topo/base, só no layout de 2 colunas (`lg+`) -
           pedido explícito ("abraça esse todo saindo do canto direito",
           "linhas + tag", cor "a partir da barra" como uma extensão dela);
