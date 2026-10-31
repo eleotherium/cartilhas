@@ -79,24 +79,23 @@ export function FeaturedQuote({ cartilha, barGap, onOpen, onSubscribeClick }: Fe
           simples de 2 pontas ficava opaco bem na borda, sem nenhum fade ali
           (e a tag "Nova edição" ainda cobria esse trecho mais forte, cortando
           a linha de forma abrupta em vez de dissolvê-la). */}
-      <span
-        aria-hidden
-        className="absolute top-0 hidden h-px opacity-60 lg:block"
-        style={{
-          left: leftGap + BAR_WIDTH,
-          right: -rightViewportGap,
-          background: "linear-gradient(90deg, transparent 0%, var(--color-calendula) 14%, var(--color-calendula) 80%, transparent 100%)",
-        }}
-      />
-      <span
-        aria-hidden
-        className="absolute bottom-0 hidden h-px opacity-60 lg:block"
-        style={{
-          left: leftGap + BAR_WIDTH,
-          right: -rightViewportGap,
-          background: "linear-gradient(90deg, transparent 0%, var(--color-calendula) 14%, var(--color-calendula) 80%, transparent 100%)",
-        }}
-      />
+      {/* Wrapper ocupa o espaço inteiro (barra até a borda da tela, como
+          antes) só pra centralizar a régua de verdade dentro dele - pedido
+          explícito: "diminui o comprimento das barras, mas mantém
+          centralizado". A régua em si (`width: 78%`) fica mais curta que o
+          espaço disponível, sobrando a mesma folga solta dos dois lados. */}
+      <span aria-hidden className="absolute top-0 hidden lg:flex lg:justify-center" style={{ left: leftGap + BAR_WIDTH, right: -rightViewportGap }}>
+        <span
+          className="h-px w-[78%] opacity-60"
+          style={{ background: "linear-gradient(90deg, transparent 0%, var(--color-calendula) 14%, var(--color-calendula) 80%, transparent 100%)" }}
+        />
+      </span>
+      <span aria-hidden className="absolute bottom-0 hidden lg:flex lg:justify-center" style={{ left: leftGap + BAR_WIDTH, right: -rightViewportGap }}>
+        <span
+          className="h-px w-[78%] opacity-60"
+          style={{ background: "linear-gradient(90deg, transparent 0%, var(--color-calendula) 14%, var(--color-calendula) 80%, transparent 100%)" }}
+        />
+      </span>
       {/* Tag ancorada na régua de cima, alinhada à borda direita do
           CONTEÚDO (não da tela crua, diferente das réguas) - mesmo
           alinhamento que o resto da página já respeita. `bg-paper`
