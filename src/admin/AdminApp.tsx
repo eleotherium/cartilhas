@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Eye, Filter, Pencil, Plus } from "lucide-react"
+import { Eye, Filter, Pencil, Plus, Users } from "lucide-react"
 import { AppHeader } from "@/components/AppHeader"
 import { Backdrop } from "@/components/Backdrop"
 import { ReadingDrawer } from "@/components/ReadingDrawer"
@@ -11,28 +11,32 @@ import { CartilhaEditor } from "./CartilhaEditor"
 import { PeriodSelector } from "./PeriodSelector"
 import { defaultPeriod, type PeriodValue } from "./periodRange"
 import { StatsPanel } from "./StatsPanel"
+import { SubscribersPanel } from "./SubscribersPanel"
 import { ShareButton, StatsButton } from "./TextTools"
 
-type View = { name: "list" } | { name: "edit"; id: number | "new" }
+type View = { name: "list" } | { name: "edit"; id: number | "new" } | { name: "subscribers" }
 
 const ALL_CATEGORIES = new Set<Category>(CATEGORY_ORDER)
 
-// Reflete a tela atual na URL (/admin, /admin/novo, /admin/:id) - antes o
-// estado só existia em memória (useState puro), então recarregar a página
-// ou compartilhar o link enquanto editava um texto sempre voltava pra
-// lista, sem rota própria pra apontar de volta pra aquele texto. `pushState`
-// + `popstate` dão navegação de verdade (voltar do navegador funciona) sem
-// precisar de react-router só pra estas poucas telas.
+// Reflete a tela atual na URL (/admin, /admin/novo, /admin/:id,
+// /admin/assinantes) - antes o estado só existia em memória (useState
+// puro), então recarregar a página ou compartilhar o link enquanto editava
+// um texto sempre voltava pra lista, sem rota própria pra apontar de volta
+// pra aquela tela. `pushState` + `popstate` dão navegação de verdade
+// (voltar do navegador funciona) sem precisar de react-router só pra estas
+// poucas telas.
 function parseViewFromPath(): View {
   const rest = window.location.pathname.replace(/^\/admin\/?/, "")
   if (rest === "") return { name: "list" }
   if (rest === "novo") return { name: "edit", id: "new" }
+  if (rest === "assinantes") return { name: "subscribers" }
   const id = Number(rest)
   return Number.isInteger(id) && id > 0 ? { name: "edit", id } : { name: "list" }
 }
 
 function pathForView(view: View): string {
   if (view.name === "list") return "/admin"
+  if (view.name === "subscribers") return "/admin/assinantes"
   return view.id === "new" ? "/admin/novo" : `/admin/${view.id}`
 }
 
@@ -193,6 +197,8 @@ export function AdminApp() {
       <div className="relative mx-auto max-w-7xl px-6 py-16 sm:px-10">
         {view.name === "edit" ? (
           <CartilhaEditor id={view.id} onBack={() => navigate({ name: "list" })} onSaved={() => navigate({ name: "list" })} />
+        ) : view.name === "subscribers" ? (
+          <SubscribersPanel onBack={() => navigate({ name: "list" })} />
         ) : (
           <>
             {/* Hero continua centralizado na página (igual o site público -
@@ -221,6 +227,14 @@ export function AdminApp() {
                 <PeriodSelector value={period} onChange={setPeriod} />
                 <button
                   type="button"
+                  onClick={() => navigate({ name: "subscribers" })}
+                  className="glass-card flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-ink-soft hover:text-calendula-deep"
+                >
+                  <Users className="h-4 w-4" strokeWidth={2} />
+                  Assinantes
+                </button>
+                <button
+                  type="button"
                   onClick={() => navigate({ name: "edit", id: "new" })}
                   className="gradient-calendula flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-paper shadow-[0_8px_20px_-6px_rgb(212_65_7_/_0.5)]"
                 >
@@ -242,7 +256,7 @@ export function AdminApp() {
               // são controles DESSA lista, não métricas.
               <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
                 <aside className="lg:w-[320px] lg:shrink-0">
-                  <StatsPanel period={period} />
+                  <StatsPanel period={period} onViewSubscribers={() => navigate({ name: "subscribers" })} />
                 </aside>
 
                 <main className="min-w-0 flex-1">

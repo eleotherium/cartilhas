@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Eye, Flame, Users } from "lucide-react"
+import { Eye, Flame, UserPlus, Users } from "lucide-react"
 import { CATEGORY_META } from "@/lib/categories"
 import { cn } from "@/lib/utils"
 import { periodLabel, type PeriodValue } from "./periodRange"
@@ -20,8 +20,10 @@ interface TopRead {
 interface Stats {
   visitsTotal: number
   readsTotal: number
+  subscribersTotal: number
   visitsSeries: DaySeries[]
   readsSeries: DaySeries[]
+  subscribersSeries: DaySeries[]
   topReads: TopRead[]
 }
 
@@ -55,6 +57,7 @@ function StatCard({
   series,
   colorVar,
   periodCaption,
+  onClick,
 }: {
   icon: typeof Eye
   label: string
@@ -62,21 +65,35 @@ function StatCard({
   series: DaySeries[]
   colorVar: string
   periodCaption: string
+  /** Só o cartão de assinantes usa isso, pra levar direto pra lista de
+   * emails (StatsPanel não guarda os emails em si, só a agregação). */
+  onClick?: () => void
 }) {
+  const Wrapper = onClick ? "button" : "div"
   return (
-    <div className="glass-card flex flex-col gap-4 rounded-[24px] p-5">
-      <div className="flex items-center gap-2 text-ink-faint">
-        <Icon className="h-4 w-4" strokeWidth={2} />
-        <span className="text-xs font-semibold uppercase tracking-[0.06em]">{label}</span>
+    <Wrapper
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={cn(
+        "glass-card flex flex-col gap-4 rounded-[24px] p-5 text-left transition-shadow duration-150",
+        onClick && "hover:shadow-[0_12px_30px_-16px_rgb(212_65_7_/_0.4)]",
+      )}
+    >
+      <div className="flex items-center justify-between text-ink-faint">
+        <div className="flex items-center gap-2">
+          <Icon className="h-4 w-4" strokeWidth={2} />
+          <span className="text-xs font-semibold uppercase tracking-[0.06em]">{label}</span>
+        </div>
+        {onClick && <span className="text-[11px] font-medium text-calendula-deep">Ver todos</span>}
       </div>
       <p className="font-serif text-3xl font-bold text-ink">{value.toLocaleString("pt-BR")}</p>
       <MiniBarChart data={series} colorVar={colorVar} />
       <p className="text-[11px] text-ink-faint">{periodCaption}</p>
-    </div>
+    </Wrapper>
   )
 }
 
-export function StatsPanel({ period }: { period: PeriodValue }) {
+export function StatsPanel({ period, onViewSubscribers }: { period: PeriodValue; onViewSubscribers?: () => void }) {
   const [stats, setStats] = useState<Stats | null>(null)
   const [error, setError] = useState(false)
 
@@ -147,6 +164,15 @@ export function StatsPanel({ period }: { period: PeriodValue }) {
           series={stats.readsSeries}
           colorVar="var(--color-violeta)"
           periodCaption={periodLabel(period)}
+        />
+        <StatCard
+          icon={UserPlus}
+          label="Assinantes"
+          value={stats.subscribersTotal}
+          series={stats.subscribersSeries}
+          colorVar="color-mix(in oklch, var(--color-calendula) 50%, var(--color-violeta))"
+          periodCaption={periodLabel(period)}
+          onClick={onViewSubscribers}
         />
       </div>
     </div>

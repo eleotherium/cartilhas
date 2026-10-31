@@ -17,10 +17,22 @@ interface CartilhaFrontmatter {
   dateISO: string
   dateNote: string
   status: Status
+  /** Quando o texto entrou no ar de verdade (ISO completo, com hora) -
+   * diferente de `dateISO`, que é a data do POEMA (composição/publicação
+   * original), não do SITE. Vazio = nunca foi publicado (draft/private
+   * desde sempre). Setado automaticamente (ver handler PUT) na transição
+   * PRA "published", nunca editável à mão pelo admin - edição normal de um
+   * texto já publicado preserva o valor. */
+  publishedAt: string
 }
 
 interface CartilhaFull extends CartilhaFrontmatter {
   dateLabel: string
+  /** `publishedAt` com fallback pra `dateISO` quando o texto nunca passou
+   * pela transição (os textos migrados antes dessa feature existir) -
+   * calculado em `toFull`, nunca lido direto do frontmatter crú. */
+  publishedAt: string
+  publishedLabel: string
   body: string
   excerpt: string
   wordCount: number
@@ -103,6 +115,9 @@ function parseFrontmatter(raw: string): { meta: CartilhaFrontmatter; body: strin
     // publicado (comportamento de sempre), sem precisar de migração dos
     // 58 textos já existentes no bucket.
     status: (fields.status as Status) ?? "published",
+    // Ausente = texto salvo antes do campo existir - `toFull` cobre com
+    // fallback pra `dateISO`, sem precisar reescrever nada no bucket.
+    publishedAt: fields.publishedAt ?? "",
   }
   return { meta, body: rest.trim() }
 }
@@ -117,6 +132,7 @@ function serializeFrontmatter(meta: CartilhaFrontmatter): string {
     `dateISO: ${esc(meta.dateISO)}`,
     `dateNote: ${esc(meta.dateNote)}`,
     `status: ${meta.status}`,
+    `publishedAt: ${esc(meta.publishedAt)}`,
     "---",
     "",
   ].join("\n")
@@ -132,10 +148,12 @@ function buildExcerpt(body: string, maxLen = 150): string {
   return `${line.slice(0, maxLen).trimEnd()}…`
 }
 
-function dateLabel(dateISO: string): string {
-  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "long", year: "numeric" }).format(
-    new Date(`${dateISO}T00:00:00`),
-  )
+// Aceita tanto uma data pura (`dateISO`, "AAAA-MM-DD") quanto um timestamp
+// completo (`publishedAt` recém-gravado, com hora e "T") - os dois formatos
+// passam por essa mesma função (ver `toFull`).
+function dateLabel(value: string): string {
+  const date = value.includes("T") ? new Date(value) : new Date(`${value}T00:00:00`)
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "long", year: "numeric" }).format(date)
 }
 
 // O editor rico serializa quebra de linha forçada (Shift+Enter dentro da
@@ -151,9 +169,16 @@ function stripHardBreakMarkers(body: string): string {
 
 function toFull(meta: CartilhaFrontmatter, rawBody: string): CartilhaFull {
   const body = stripHardBreakMarkers(rawBody)
+  // Fallback retroativo: textos migrados antes de `publishedAt` existir (ou
+  // ainda não republicados desde então) exibem a data de composição como
+  // data de publicação - mesma convenção combinada com o usuário, sem
+  // precisar reescrever os objetos antigos no R2.
+  const publishedAt = meta.publishedAt || meta.dateISO
   return {
     ...meta,
     dateLabel: dateLabel(meta.dateISO),
+    publishedAt,
+    publishedLabel: dateLabel(publishedAt),
     body,
     excerpt: buildExcerpt(body),
     wordCount: body.split(/\s+/).filter(Boolean).length,
@@ -353,6 +378,35 @@ function seriesForRange(byDay: Record<string, number>, from: string, to: string)
     cursor = addDaysStr(cursor, 1)
   }
   return series
+}
+
+type SubscriberStatus = "pending" | "confirmed" | "unsubscribed"
+
+// Série de novas confirmações por dia, pro mesmo mini-gráfico de barras dos
+// outros cartões do StatsPanel (visitas/leituras) - fonte é o D1 (tabela
+// `subscribers`), não o StatsData do R2 (que só guarda eventos de
+// visita/leitura). `substr(confirmed_at, 1, 10)` extrai a data (UTC, mesma
+// convenção de `todayKey`) do timestamp ISO completo gravado em
+// `/api/subscribe/confirm`.
+async function subscribersSeriesForRange(
+  db: D1Database,
+  from: string,
+  to: string,
+): Promise<{ series: { date: string; count: number }[]; total: number }> {
+  const { results } = await db
+    .prepare(
+      `SELECT substr(confirmed_at, 1, 10) as day, COUNT(*) as count
+       FROM subscribers
+       WHERE status = 'confirmed' AND confirmed_at IS NOT NULL AND substr(confirmed_at, 1, 10) BETWEEN ?1 AND ?2
+       GROUP BY day`,
+    )
+    .bind(from, to)
+    .all<{ day: string; count: number }>()
+  const byDay: Record<string, number> = {}
+  for (const row of results) byDay[row.day] = row.count
+  const series = seriesForRange(byDay, from, to)
+  const total = series.reduce((sum, d) => sum + d.count, 0)
+  return { series, total }
 }
 
 // A aplicação Access (configurada no painel Cloudflare, fora deste código) é a
@@ -854,6 +908,7 @@ export default {
             const entry = byId.get(e.id)
             return { ...e, title: entry?.title ?? "(texto removido)", category: entry?.category ?? null }
           })
+        const { series: subscribersSeries, total: subscribersTotal } = await subscribersSeriesForRange(env.DB, from, to)
         return jsonResponse({
           from,
           to,
@@ -861,7 +916,24 @@ export default {
           readsTotal: sumRange(stats.readsByDay, from, to),
           visitsSeries: seriesForRange(stats.visitsByDay, from, to),
           readsSeries: seriesForRange(stats.readsByDay, from, to),
+          subscribersTotal,
+          subscribersSeries,
           topReads,
+        })
+      }
+
+      // Lista completa de assinantes (todo status, mais recente primeiro) -
+      // é a fonte de "quem são meus assinantes" que o StatsPanel não cobre
+      // (ele só agrega números, nunca expõe os emails individuais).
+      if (pathname === "/api/admin/subscribers" && request.method === "GET") {
+        const { results } = await env.DB.prepare(
+          "SELECT id, email, status, created_at, confirmed_at FROM subscribers ORDER BY created_at DESC",
+        ).all<{ id: number; email: string; status: SubscriberStatus; created_at: string; confirmed_at: string | null }>()
+        const counts = { confirmed: 0, pending: 0, unsubscribed: 0 }
+        for (const row of results) counts[row.status] += 1
+        return jsonResponse({
+          items: results.map((r) => ({ id: r.id, email: r.email, status: r.status, createdAt: r.created_at, confirmedAt: r.confirmed_at })),
+          counts,
         })
       }
 
@@ -989,13 +1061,23 @@ export default {
         // email) - um texto `new` não tem versão anterior nenhuma.
         const previous = putMatch[1] === "new" ? null : await bucket.get(`${id}.md`)
         let previousStatus: Status | null = null
+        let previousPublishedAt = ""
         if (previous) {
           const previousRaw = await previous.text()
-          previousStatus = parseFrontmatter(previousRaw).meta.status
+          const previousMeta = parseFrontmatter(previousRaw).meta
+          previousStatus = previousMeta.status
+          previousPublishedAt = previousMeta.publishedAt
           await bucket.put(historyKey(id, new Date().toISOString()), previousRaw, {
             httpMetadata: { contentType: "text/markdown; charset=utf-8" },
           })
         }
+
+        // Mesma transição que dispara `notifySubscribers` logo abaixo: só
+        // quando o texto PASSA a ser published agora (de novo ou pela
+        // primeira vez) é que a data de publicação avança - reeditar um
+        // texto que já estava published preserva a data original.
+        const isNewlyPublished = previousStatus !== "published" && payload.status === "published"
+        const publishedAt = isNewlyPublished ? new Date().toISOString() : previousPublishedAt
 
         const meta: CartilhaFrontmatter = {
           id,
@@ -1004,6 +1086,7 @@ export default {
           dateISO: payload.dateISO,
           dateNote: payload.dateNote,
           status: payload.status,
+          publishedAt,
         }
         const raw = serializeFrontmatter(meta) + payload.bodyMarkdown.trim() + "\n"
         await bucket.put(`${id}.md`, raw, { httpMetadata: { contentType: "text/markdown; charset=utf-8" } })
@@ -1013,7 +1096,7 @@ export default {
         // Notifica assinantes só na transição PRA published - nunca ao só
         // reeditar um texto que já era público (ver notifySubscribers).
         // Best-effort: uma falha aqui não desfaz o save, que já aconteceu.
-        if (saved && previousStatus !== "published" && meta.status === "published") {
+        if (saved && isNewlyPublished) {
           ctx.waitUntil(notifySubscribers(env, saved).catch(() => {}))
         }
 
