@@ -65,19 +65,17 @@ export function FeaturedQuote({ cartilha, barGap, onOpen, onSubscribeClick }: Fe
   const rightViewportGap = useRightViewportGap(rootRef)
 
   return (
-    <div ref={rootRef} className="relative flex h-full flex-col gap-3 pb-3 pt-6" style={{ paddingLeft: leftGap + BAR_WIDTH + rightGap }}>
+    <div ref={rootRef} className="relative flex h-full flex-col gap-3 pb-4 pt-8" style={{ paddingLeft: leftGap + BAR_WIDTH + rightGap }}>
       {/* Réguas finas no topo/base, só no layout de 2 colunas (`lg+`) -
           pedido explícito ("abraça esse todo saindo do canto direito",
           "linhas + tag", cor "a partir da barra" como uma extensão dela);
           no empilhado (mobile/tablet) o usuário confirmou que já está bom
-          sem elas. Cada régua usa a cor REAL da barra NAQUELA altura (ela é
-          um degradê vertical calêndula→violeta) - a de cima é calêndula, a
-          de baixo é violeta, nunca uma cor inventada à parte - dissolvendo
+          sem elas. As duas usam a mesma cor calêndula (pedido explícito:
+          "deixa a de baixo na mesma cor da de cima" - a primeira versão
+          usava a cor real da barra em cada altura, calêndula em cima e
+          violeta embaixo, mas o usuário preferiu uniformizar), dissolvendo
           pra transparente indo pra direita até a borda física da tela (ver
-          `useRightViewportGap`). Duas tentativas anteriores erraram: uma
-          tinha a direção do fade invertida (sumia bem onde devia nascer);
-          outra usava linhas grossas com cores saturadas que destoavam da
-          referência fina/sutil aprovada. */}
+          `useRightViewportGap`). */}
       <span
         aria-hidden
         className="absolute top-0 hidden h-px bg-gradient-to-l from-calendula to-transparent opacity-60 lg:block"
@@ -85,7 +83,7 @@ export function FeaturedQuote({ cartilha, barGap, onOpen, onSubscribeClick }: Fe
       />
       <span
         aria-hidden
-        className="absolute bottom-0 hidden h-px bg-gradient-to-l from-violeta to-transparent opacity-60 lg:block"
+        className="absolute bottom-0 hidden h-px bg-gradient-to-l from-calendula to-transparent opacity-60 lg:block"
         style={{ left: leftGap + BAR_WIDTH, right: -rightViewportGap }}
       />
       {/* Tag ancorada na régua de cima, alinhada à borda direita do
