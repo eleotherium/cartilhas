@@ -71,20 +71,31 @@ export function FeaturedQuote({ cartilha, barGap, onOpen, onSubscribeClick }: Fe
           "linhas + tag", cor "a partir da barra" como uma extensão dela);
           no empilhado (mobile/tablet) o usuário confirmou que já está bom
           sem elas. As duas usam a mesma cor calêndula (pedido explícito:
-          "deixa a de baixo na mesma cor da de cima" - a primeira versão
-          usava a cor real da barra em cada altura, calêndula em cima e
-          violeta embaixo, mas o usuário preferiu uniformizar), dissolvendo
-          pra transparente indo pra direita até a borda física da tela (ver
-          `useRightViewportGap`). */}
+          "deixa a de baixo na mesma cor da de cima"). Gradiente de 4 paradas
+          (não `from/to` simples): some perto da barra, opaco no meio, e
+          some de novo perto da borda extrema direita (pedido explícito:
+          "um fade out no canto extremo direito também, como temos no canto
+          esquerdo") - medi em pixel real e confirmei que um gradiente
+          simples de 2 pontas ficava opaco bem na borda, sem nenhum fade ali
+          (e a tag "Nova edição" ainda cobria esse trecho mais forte, cortando
+          a linha de forma abrupta em vez de dissolvê-la). */}
       <span
         aria-hidden
-        className="absolute top-0 hidden h-px bg-gradient-to-l from-calendula to-transparent opacity-60 lg:block"
-        style={{ left: leftGap + BAR_WIDTH, right: -rightViewportGap }}
+        className="absolute top-0 hidden h-px opacity-60 lg:block"
+        style={{
+          left: leftGap + BAR_WIDTH,
+          right: -rightViewportGap,
+          background: "linear-gradient(90deg, transparent 0%, var(--color-calendula) 14%, var(--color-calendula) 80%, transparent 100%)",
+        }}
       />
       <span
         aria-hidden
-        className="absolute bottom-0 hidden h-px bg-gradient-to-l from-calendula to-transparent opacity-60 lg:block"
-        style={{ left: leftGap + BAR_WIDTH, right: -rightViewportGap }}
+        className="absolute bottom-0 hidden h-px opacity-60 lg:block"
+        style={{
+          left: leftGap + BAR_WIDTH,
+          right: -rightViewportGap,
+          background: "linear-gradient(90deg, transparent 0%, var(--color-calendula) 14%, var(--color-calendula) 80%, transparent 100%)",
+        }}
       />
       {/* Tag ancorada na régua de cima, alinhada à borda direita do
           CONTEÚDO (não da tela crua, diferente das réguas) - mesmo
